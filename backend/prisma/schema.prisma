@@ -1,0 +1,421 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum ToddlerStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum GrowthTrend {
+  UP
+  STABLE
+  DOWN
+}
+
+enum RiskLevel {
+  NORMAL
+  ATTENTION
+  STUNTING_RISK
+  UNDERNUTRITION
+  OVERWEIGHT
+}
+
+model User {
+  id             Int        @id @default(autoincrement())
+  name           String
+  email          String     @unique
+  passwordHash   String
+  phone          String?
+  status         UserStatus @default(ACTIVE)
+  lastLoginAt    DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  roles          UserRole[]
+  checkups       Checkup[]
+  auditLogs      AuditLog[]
+}
+
+model Role {
+  id          Int              @id @default(autoincrement())
+  name        String           @unique
+  code        String           @unique
+  description String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  users       UserRole[]
+  permissions RolePermission[]
+}
+
+model Permission {
+  id          Int              @id @default(autoincrement())
+  name        String
+  code        String           @unique
+  description String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  roles       RolePermission[]
+}
+
+model RolePermission {
+  roleId       Int
+  permissionId Int
+  assignedAt   DateTime   @default(now())
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+model UserRole {
+  userId     Int
+  roleId     Int
+  assignedAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+}
+
+model Village {
+  id         Int        @id @default(autoincrement())
+  name       String
+  code       String     @unique
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  hamlets    Hamlet[]
+  posyandus  Posyandu[]
+  families   Family[]
+
+  @@index([name])
+}
+
+model Hamlet {
+  id         Int        @id @default(autoincrement())
+  villageId  Int
+  name       String
+  code       String     @unique
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  village    Village    @relation(fields: [villageId], references: [id], onDelete: Restrict)
+  rws        RW[]
+  posyandus  Posyandu[]
+  families   Family[]
+  toddlers   Toddler[]
+
+  @@index([villageId])
+  @@index([name])
+}
+
+model RW {
+  id         Int        @id @default(autoincrement())
+  hamletId   Int
+  name       String
+  code       String     @unique
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  hamlet     Hamlet     @relation(fields: [hamletId], references: [id], onDelete: Restrict)
+  rts        RT[]
+  families   Family[]
+  toddlers   Toddler[]
+
+  @@index([hamletId])
+}
+
+model RT {
+  id         Int        @id @default(autoincrement())
+  rwId       Int
+  name       String
+  code       String     @unique
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  rw         RW         @relation(fields: [rwId], references: [id], onDelete: Restrict)
+  families   Family[]
+  toddlers   Toddler[]
+
+  @@index([rwId])
+}
+
+model Posyandu {
+  id              Int        @id @default(autoincrement())
+  villageId       Int
+  hamletId        Int
+  name            String
+  code            String     @unique
+  locationAddress String?
+  scheduleDay     String?
+  contactPhone    String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  village         Village    @relation(fields: [villageId], references: [id], onDelete: Restrict)
+  hamlet          Hamlet     @relation(fields: [hamletId], references: [id], onDelete: Restrict)
+  toddlers        Toddler[]
+  checkups        Checkup[]
+
+  @@index([villageId, hamletId])
+}
+
+model Family {
+  id            Int        @id @default(autoincrement())
+  villageId     Int
+  hamletId      Int
+  rwId          Int
+  rtId          Int
+  familyNumber  String     @unique
+  headName      String
+  address       String
+  phone         String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  village       Village    @relation(fields: [villageId], references: [id], onDelete: Restrict)
+  hamlet        Hamlet     @relation(fields: [hamletId], references: [id], onDelete: Restrict)
+  rw            RW         @relation(fields: [rwId], references: [id], onDelete: Restrict)
+  rt            RT         @relation(fields: [rtId], references: [id], onDelete: Restrict)
+  mothers       Mother[]
+  fathers       Father[]
+  members       FamilyMember[]
+  toddlers      Toddler[]
+
+  @@index([hamletId, rwId, rtId])
+}
+
+model FamilyMember {
+  id                 Int       @id @default(autoincrement())
+  familyId           Int
+  relationType       String
+  fullName           String
+  nik                String?   @unique
+  gender             Gender
+  placeOfBirth       String?
+  birthDate          DateTime?
+  religion           String?
+  education          String?
+  occupation         String?
+  maritalStatus      String?
+  citizenship        String?   @default("WNI")
+  fatherName         String?
+  motherName         String?
+  relationshipStatus String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  family             Family    @relation(fields: [familyId], references: [id], onDelete: Cascade)
+
+  @@index([familyId])
+  @@index([relationType])
+  @@index([fullName])
+}
+
+model Mother {
+  id          Int       @id @default(autoincrement())
+  familyId    Int
+  fullName    String
+  nik         String?   @unique
+  birthDate   DateTime?
+  education   String?
+  occupation  String?
+  phone       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  family      Family    @relation(fields: [familyId], references: [id], onDelete: Cascade)
+}
+
+model Father {
+  id          Int       @id @default(autoincrement())
+  familyId    Int
+  fullName    String
+  nik         String?   @unique
+  birthDate   DateTime?
+  education   String?
+  occupation  String?
+  phone       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  family      Family    @relation(fields: [familyId], references: [id], onDelete: Cascade)
+}
+
+model Toddler {
+  id                Int           @id @default(autoincrement())
+  code              String        @unique
+  fullName          String
+  nik               String?       @unique
+  noKk              String?
+  placeOfBirth      String
+  birthDate         DateTime
+  gender            Gender
+  motherName        String
+  fatherName        String
+  familyId          Int
+  posyanduId        Int
+  address           String
+  hamletId          Int
+  rwId              Int
+  rtId              Int
+  parentPhone       String?
+  status            ToddlerStatus @default(ACTIVE)
+  qrCodeValue       String        @unique
+  photoUrl          String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  family            Family        @relation(fields: [familyId], references: [id], onDelete: Restrict)
+  posyandu          Posyandu      @relation(fields: [posyanduId], references: [id], onDelete: Restrict)
+  hamlet            Hamlet        @relation(fields: [hamletId], references: [id], onDelete: Restrict)
+  rw                RW            @relation(fields: [rwId], references: [id], onDelete: Restrict)
+  rt                RT            @relation(fields: [rtId], references: [id], onDelete: Restrict)
+  cards             ToddlerCard[]
+  checkups          Checkup[]
+  immunizations     ToddlerImmunization[]
+  growthStatusLogs  GrowthStatusLog[]
+
+  @@index([fullName])
+  @@index([hamletId, posyanduId])
+  @@index([status])
+}
+
+model ToddlerCard {
+  id           Int       @id @default(autoincrement())
+  toddlerId    Int
+  cardNumber   String    @unique
+  publicToken  String    @unique
+  qrCodeUrl    String?
+  printedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  toddler      Toddler   @relation(fields: [toddlerId], references: [id], onDelete: Cascade)
+
+  @@index([toddlerId])
+}
+
+model InterventionType {
+  id          Int                  @id @default(autoincrement())
+  name        String
+  code        String               @unique
+  description String?
+  isActive    Boolean              @default(true)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  checkups    CheckupIntervention[]
+}
+
+model Checkup {
+  id                Int          @id @default(autoincrement())
+  toddlerId         Int
+  posyanduId        Int
+  createdById       Int?
+  examDate          DateTime
+  ageInMonths       Int
+  weight            Decimal      @db.Decimal(5, 2)
+  height            Decimal      @db.Decimal(5, 2)
+  headCircumference Decimal?     @db.Decimal(5, 2)
+  muac              Decimal?     @db.Decimal(5, 2)
+  immunizationNote  String?
+  vitaminPmtNote    String?
+  complaintNote     String?
+  officerName       String
+  growthTrend       GrowthTrend
+  riskLevel         RiskLevel
+  statusLabel       String
+  growthSummary     String       @db.Text
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  toddler           Toddler      @relation(fields: [toddlerId], references: [id], onDelete: Cascade)
+  posyandu          Posyandu     @relation(fields: [posyanduId], references: [id], onDelete: Restrict)
+  createdBy         User?        @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  interventions     CheckupIntervention[]
+  immunizations     ToddlerImmunization[]
+  growthLogs        GrowthStatusLog[]
+
+  @@index([toddlerId, examDate(sort: Desc)])
+  @@index([riskLevel])
+  @@index([posyanduId, examDate(sort: Desc)])
+}
+
+model CheckupIntervention {
+  id                 Int              @id @default(autoincrement())
+  checkupId          Int
+  interventionTypeId Int
+  notes              String?
+  createdAt          DateTime         @default(now())
+  checkup            Checkup          @relation(fields: [checkupId], references: [id], onDelete: Cascade)
+  interventionType   InterventionType @relation(fields: [interventionTypeId], references: [id], onDelete: Restrict)
+
+  @@index([checkupId])
+  @@index([interventionTypeId])
+}
+
+model Immunization {
+  id                  Int                  @id @default(autoincrement())
+  name                String
+  code                String               @unique
+  recommendedAtMonth  Int?
+  description         String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  toddlerImmunization ToddlerImmunization[]
+}
+
+model ToddlerImmunization {
+  id             Int          @id @default(autoincrement())
+  toddlerId      Int
+  immunizationId Int
+  checkupId      Int?
+  administeredAt DateTime
+  notes          String?
+  toddler        Toddler      @relation(fields: [toddlerId], references: [id], onDelete: Cascade)
+  immunization   Immunization @relation(fields: [immunizationId], references: [id], onDelete: Restrict)
+  checkup        Checkup?     @relation(fields: [checkupId], references: [id], onDelete: SetNull)
+
+  @@index([toddlerId, administeredAt(sort: Desc)])
+  @@index([immunizationId])
+}
+
+model GrowthStatusLog {
+  id                Int         @id @default(autoincrement())
+  toddlerId         Int
+  checkupId         Int
+  previousCheckupId Int?
+  ageInMonths       Int
+  trend             GrowthTrend
+  riskLevel         RiskLevel
+  weightDelta       Decimal?    @db.Decimal(5, 2)
+  weightGap         Decimal?    @db.Decimal(5, 2)
+  heightGap         Decimal?    @db.Decimal(5, 2)
+  note              String      @db.Text
+  createdAt         DateTime    @default(now())
+  toddler           Toddler     @relation(fields: [toddlerId], references: [id], onDelete: Cascade)
+  checkup           Checkup     @relation(fields: [checkupId], references: [id], onDelete: Cascade)
+
+  @@index([toddlerId, createdAt(sort: Desc)])
+  @@index([riskLevel])
+}
+
+model AuditLog {
+  id          Int       @id @default(autoincrement())
+  userId      Int?
+  action      String
+  entityType  String
+  entityId    String?
+  description String?
+  meta        Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime  @default(now())
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([action, createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
+}
