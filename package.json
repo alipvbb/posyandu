@@ -3,6 +3,8 @@
   "private": true,
   "scripts": {
     "install:all": "npm --prefix backend install && npm --prefix frontend install",
+    "build": "npm run install:all && npm run prisma:generate && npm run build:frontend",
+    "start": "npm --prefix backend run start",
     "dev:backend": "npm --prefix backend run dev",
     "dev:frontend": "npm --prefix frontend run dev",
     "build:frontend": "npm --prefix frontend run build",
@@ -11,4 +13,3 @@
     "seed": "npm --prefix backend run seed"
   }
 }
-

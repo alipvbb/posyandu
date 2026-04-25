@@ -7,8 +7,8 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
+    "prisma:generate": "npx prisma generate",
+    "prisma:migrate": "npx prisma migrate dev",
     "prisma:seed": "node prisma/seed.js",
     "seed": "npm run prisma:seed",
     "recalculate:growth": "node prisma/recalculate-growth.js",
