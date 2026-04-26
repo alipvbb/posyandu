@@ -144,6 +144,14 @@ onBeforeUnmount(() => {
             <Icon :icon="userIcon" width="20" />
             <span>{{ authStore.user?.name }}</span>
           </RouterLink>
+          <RouterLink
+            v-if="authStore.hasPermission('settings.manage')"
+            to="/pengaturan"
+            class="topbar-logout"
+            aria-label="Pengaturan"
+          >
+            <Icon :icon="settingsIcon" width="20" />
+          </RouterLink>
           <button class="topbar-logout" type="button" aria-label="Logout" @click="handleLogout">
             <Icon :icon="logoutIcon" width="20" />
           </button>
