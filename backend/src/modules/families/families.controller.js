@@ -166,6 +166,8 @@ export const listFamilies = async (req, res, next) => {
     const actorVillageId = getActorVillageId(req.user);
     const { page, pageSize, skip, take } = buildPagination(req.query);
     const search = req.query.search?.trim();
+    const order = String(req.query.order || '').trim().toLowerCase();
+    const orderBy = order === 'oldest' ? { createdAt: 'asc' } : { createdAt: 'desc' };
     const where = search
       ? {
           ...(actorVillageId === null ? {} : { villageId: actorVillageId }),
@@ -186,7 +188,7 @@ export const listFamilies = async (req, res, next) => {
         include: familyInclude,
         skip,
         take,
-        orderBy: { createdAt: 'desc' },
+        orderBy,
       }),
       prisma.family.count({ where }),
     ]);
