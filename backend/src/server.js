@@ -1,6 +1,5 @@
 import { app } from './app.js';
 import { env } from './config/env.js';
-import { prisma } from './config/prisma.js';
 import http from 'node:http';
 
 const start = async () => {
@@ -8,19 +7,6 @@ const start = async () => {
     app.listen(env.port, () => {
       console.log(`Backend running on http://localhost:${env.port}`);
     });
-
-    try {
-      const warmup = prisma.$connect();
-      Promise.resolve(warmup)
-        .then(() => {
-          console.log('Database connected');
-        })
-        .catch((error) => {
-          console.error('Database warmup failed', error);
-        });
-    } catch (error) {
-      console.error('Database warmup failed', error);
-    }
 
     const redirectFromPort = process.env.REDIRECT_FROM_PORT
       ? Number(process.env.REDIRECT_FROM_PORT)
