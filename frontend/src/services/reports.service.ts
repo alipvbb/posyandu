@@ -1,4 +1,4 @@
-import { api } from './api';
+import { API_BASE_URL, api } from './api';
 
 export const reportsService = {
   async getToddlers(params: Record<string, string> = {}) {
@@ -12,6 +12,6 @@ export const reportsService = {
   getExportUrl(type: 'toddlers' | 'checkups' | 'risk', format: 'csv' | 'xlsx' | 'pdf') {
     const token = localStorage.getItem('posyandu_access_token');
     const query = new URLSearchParams({ format, token: token || '' });
-    return `${import.meta.env.VITE_API_BASE_URL}/reports/${type}?${query.toString()}`;
+    return `${API_BASE_URL}/reports/${type}?${query.toString()}`;
   },
 };
