@@ -9,14 +9,18 @@ const start = async () => {
       console.log(`Backend running on http://localhost:${env.port}`);
     });
 
-    prisma
-      .$connect()
-      .then(() => {
-        console.log('Database connected');
-      })
-      .catch((error) => {
-        console.error('Database warmup failed', error);
-      });
+    try {
+      const warmup = prisma.$connect();
+      Promise.resolve(warmup)
+        .then(() => {
+          console.log('Database connected');
+        })
+        .catch((error) => {
+          console.error('Database warmup failed', error);
+        });
+    } catch (error) {
+      console.error('Database warmup failed', error);
+    }
 
     const redirectFromPort = process.env.REDIRECT_FROM_PORT
       ? Number(process.env.REDIRECT_FROM_PORT)
