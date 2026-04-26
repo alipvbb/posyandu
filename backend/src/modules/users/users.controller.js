@@ -4,12 +4,18 @@ import { writeAuditLog } from '../../services/audit.service.js';
 import { ApiError } from '../../utils/api-error.js';
 import { buildMeta, buildPagination } from '../../utils/pagination.js';
 import { getActorVillageId } from '../../utils/village-scope.js';
+import { extractCustomPermissionCodes, resolveEffectiveUserPermissions } from '../../utils/user-permissions.js';
 
 const userInclude = {
   village: true,
   roles: {
     include: {
       role: true,
+    },
+  },
+  userPermissions: {
+    include: {
+      permission: true,
     },
   },
 };
@@ -30,6 +36,9 @@ const mapUser = (user) => ({
       }
     : null,
   roles: user.roles.map((item) => item.role),
+  useCustomPermissions: Boolean(user.useCustomPermissions),
+  customPermissionCodes: extractCustomPermissionCodes(user),
+  permissions: resolveEffectiveUserPermissions(user),
 });
 
 const resolveRoles = async ({ roleIds, roleCodes }) => {
@@ -42,6 +51,22 @@ const resolveRoles = async ({ roleIds, roleCodes }) => {
   }
 
   return [];
+};
+
+const resolvePermissionsByCodes = async (codes = []) => {
+  if (!codes.length) return [];
+  const uniqueCodes = [...new Set(codes)];
+  const permissions = await prisma.permission.findMany({
+    where: {
+      code: {
+        in: uniqueCodes,
+      },
+    },
+  });
+  if (permissions.length !== uniqueCodes.length) {
+    throw new ApiError(422, 'Ada permission yang tidak valid');
+  }
+  return permissions;
 };
 
 const resolveActorVillageId = (reqUser) => getActorVillageId(reqUser);
@@ -105,7 +130,8 @@ export const listUsers = async (req, res, next) => {
 
 export const createUser = async (req, res, next) => {
   try {
-    const { name, email, password, phone, status, roleIds, roleCodes, villageId } = req.validated.body;
+    const { name, email, password, phone, status, roleIds, roleCodes, villageId, useCustomPermissions, customPermissionCodes } =
+      req.validated.body;
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
       throw new ApiError(409, 'Email sudah digunakan');
@@ -113,6 +139,12 @@ export const createUser = async (req, res, next) => {
 
     const targetVillageId = resolveTargetVillageId(req.user, villageId);
     const roles = await resolveRoles({ roleIds, roleCodes });
+    const customPermissions = await resolvePermissionsByCodes(customPermissionCodes || []);
+
+    if (useCustomPermissions && !customPermissions.length) {
+      throw new ApiError(422, 'Hak akses khusus aktif, pilih minimal 1 permission');
+    }
+
     const user = await prisma.user.create({
       data: {
         name,
@@ -120,12 +152,22 @@ export const createUser = async (req, res, next) => {
         phone,
         status,
         villageId: targetVillageId,
+        useCustomPermissions: Boolean(useCustomPermissions),
         passwordHash: await bcrypt.hash(password, 10),
         roles: {
           create: roles.map((role) => ({
             roleId: role.id,
           })),
         },
+        ...(customPermissions.length
+          ? {
+              userPermissions: {
+                create: customPermissions.map((permission) => ({
+                  permissionId: permission.id,
+                })),
+              },
+            }
+          : {}),
       },
       include: userInclude,
     });
@@ -159,11 +201,21 @@ export const updateUser = async (req, res, next) => {
     ensureSameVillageAccess(req.user, existing.villageId);
 
     const roles = await resolveRoles(payload);
+    const customPermissions = await resolvePermissionsByCodes(payload.customPermissionCodes || []);
+    const shouldUpdateCustomPermissions =
+      payload.customPermissionCodes !== undefined || payload.useCustomPermissions !== undefined;
+    const targetUseCustomPermissions = payload.useCustomPermissions ?? existing.useCustomPermissions;
+
+    if (targetUseCustomPermissions && shouldUpdateCustomPermissions && !customPermissions.length) {
+      throw new ApiError(422, 'Hak akses khusus aktif, pilih minimal 1 permission');
+    }
+
     const data = {
       name: payload.name,
       email: payload.email,
       phone: payload.phone,
       status: payload.status,
+      useCustomPermissions: payload.useCustomPermissions,
       ...(payload.villageId !== undefined
         ? {
             villageId: resolveTargetVillageId(req.user, payload.villageId || undefined),
@@ -180,6 +232,10 @@ export const updateUser = async (req, res, next) => {
         await tx.userRole.deleteMany({ where: { userId: id } });
       }
 
+      if (shouldUpdateCustomPermissions) {
+        await tx.userPermission.deleteMany({ where: { userId: id } });
+      }
+
       return tx.user.update({
         where: { id },
         data: {
@@ -188,6 +244,13 @@ export const updateUser = async (req, res, next) => {
             ? {
                 roles: {
                   create: roles.map((role) => ({ roleId: role.id })),
+                },
+              }
+            : {}),
+          ...(shouldUpdateCustomPermissions
+            ? {
+                userPermissions: {
+                  create: customPermissions.map((permission) => ({ permissionId: permission.id })),
                 },
               }
             : {}),

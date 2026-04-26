@@ -70,3 +70,38 @@ export const sendRegisterVerificationEmail = async ({ to, name, code, villageNam
     return { sent: false, mocked: true, channel: 'mock-fallback' };
   }
 };
+
+export const sendPasswordResetEmail = async ({ to, name, code, villageName }) => {
+  const subject = `Kode Reset Password ${APP_NAME}`;
+  const text = [
+    `Halo ${name},`,
+    '',
+    `Kami menerima permintaan reset password untuk akun ${APP_NAME}.`,
+    `Desa: ${villageName}`,
+    '',
+    `Kode reset password Anda: ${code}`,
+    '',
+    'Kode berlaku 15 menit.',
+    'Jika Anda tidak merasa meminta reset password, abaikan email ini.',
+  ].join('\n');
+
+  const transport = getTransporter();
+  if (!transport) {
+    console.warn(`[MAIL MOCK] to=${to} subject="${subject}" code=${code}`);
+    return { sent: false, mocked: true };
+  }
+  try {
+    await transport.sendMail({
+      from: env.smtpFrom,
+      to,
+      subject,
+      text,
+    });
+
+    return { sent: true, mocked: false, channel: canUseSmtp() ? 'smtp' : 'sendmail' };
+  } catch (error) {
+    console.error('[MAIL ERROR] gagal kirim email reset password, fallback ke mock', error);
+    console.warn(`[MAIL MOCK] to=${to} subject="${subject}" code=${code}`);
+    return { sent: false, mocked: true, channel: 'mock-fallback' };
+  }
+};

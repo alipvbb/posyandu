@@ -39,6 +39,20 @@ export const authService = {
     tokenStorage.setTokens(response.data.data.tokens);
     return response.data.data.user;
   },
+  async forgotPassword(payload: { email: string }) {
+    const response = await api.post('/auth/forgot-password', payload);
+    return response.data.data as {
+      message: string;
+      expiresInMinutes: number;
+      cooldownSeconds: number;
+      delivery?: 'email' | 'mock';
+      debugCode?: string;
+    };
+  },
+  async resetPassword(payload: { email: string; code: string; newPassword: string; confirmPassword: string }) {
+    const response = await api.post('/auth/reset-password', payload);
+    return response.data.data as { message: string };
+  },
   async me() {
     const response = await api.get('/auth/me');
     return response.data.data;

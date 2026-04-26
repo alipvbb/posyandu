@@ -28,6 +28,8 @@ apiRouter.get('/', (_req, res) => {
       verifyRegister: '/api/auth/verify-register',
       resendRegisterCode: '/api/auth/resend-register-code',
       login: '/api/auth/login',
+      forgotPassword: '/api/auth/forgot-password',
+      resetPassword: '/api/auth/reset-password',
       me: '/api/auth/me',
       toddlers: '/api/toddlers',
       dashboard: '/api/dashboard/summary',

@@ -45,11 +45,13 @@ model User {
   phone          String?
   villageId      Int?
   status         UserStatus @default(ACTIVE)
+  useCustomPermissions Boolean @default(false)
   lastLoginAt    DateTime?
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
   village        Village?   @relation(fields: [villageId], references: [id], onDelete: SetNull)
   roles          UserRole[]
+  userPermissions UserPermission[]
   checkups       Checkup[]
   auditLogs      AuditLog[]
   verificationCodes UserVerificationCode[]
@@ -76,6 +78,17 @@ model Permission {
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
   roles       RolePermission[]
+  users       UserPermission[]
+}
+
+model UserPermission {
+  userId       Int
+  permissionId Int
+  assignedAt   DateTime   @default(now())
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, permissionId])
 }
 
 model RolePermission {

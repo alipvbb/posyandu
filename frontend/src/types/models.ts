@@ -6,6 +6,8 @@ export interface AuthUser {
   village: { id: number; name: string; code: string } | null;
   roles: Array<{ id: number; code: string; name: string }>;
   permissions: string[];
+  useCustomPermissions?: boolean;
+  customPermissionCodes?: string[];
 }
 
 export interface ApiListResponse<T> {

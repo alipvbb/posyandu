@@ -3,19 +3,11 @@ import bcrypt from 'bcryptjs';
 import { DEFAULT_ROLES, ROLE_PERMISSION_MAP, SYSTEM_PERMISSIONS } from '../../config/constants.js';
 import { env } from '../../config/env.js';
 import { prisma } from '../../config/prisma.js';
-import { sendRegisterVerificationEmail } from '../../services/mail.service.js';
+import { sendPasswordResetEmail, sendRegisterVerificationEmail } from '../../services/mail.service.js';
 import { writeAuditLog } from '../../services/audit.service.js';
 import { ApiError } from '../../utils/api-error.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../utils/jwt.js';
-
-const withKaderCheckupUpdatePermission = (roles, permissions) => {
-  const nextPermissions = [...permissions];
-  const isKader = roles.some((item) => item.role.code === 'kader-posyandu');
-  if (isKader && !nextPermissions.includes('checkups.update')) {
-    nextPermissions.push('checkups.update');
-  }
-  return nextPermissions;
-};
+import { extractCustomPermissionCodes, resolveEffectiveUserPermissions } from '../../utils/user-permissions.js';
 
 const userAuthInclude = {
   village: true,
@@ -28,6 +20,11 @@ const userAuthInclude = {
           },
         },
       },
+    },
+  },
+  userPermissions: {
+    include: {
+      permission: true,
     },
   },
 };
@@ -49,10 +46,9 @@ const getUserPayload = (user) => ({
     code: item.role.code,
     name: item.role.name,
   })),
-  permissions: withKaderCheckupUpdatePermission(
-    user.roles,
-    [...new Set(user.roles.flatMap((item) => item.role.permissions.map((permission) => permission.permission.code)))],
-  ),
+  useCustomPermissions: Boolean(user.useCustomPermissions),
+  customPermissionCodes: extractCustomPermissionCodes(user),
+  permissions: resolveEffectiveUserPermissions(user),
 });
 
 const findUserByEmail = (email) =>
@@ -184,6 +180,8 @@ const createStarterMasterData = async (tx, village) => {
 const hashVerificationCode = (plainCode) => crypto.createHash('sha256').update(plainCode).digest('hex');
 const REGISTER_CODE_TTL_MINUTES = 15;
 const REGISTER_RESEND_COOLDOWN_SECONDS = 60;
+const RESET_CODE_TTL_MINUTES = 15;
+const RESET_RESEND_COOLDOWN_SECONDS = 60;
 
 const issueRegisterCode = async (tx, userId) => {
   const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
@@ -211,11 +209,47 @@ const issueRegisterCode = async (tx, userId) => {
   return code;
 };
 
+const issueResetPasswordCode = async (tx, userId) => {
+  const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+  const codeHash = hashVerificationCode(code);
+  const expiresAt = new Date(Date.now() + RESET_CODE_TTL_MINUTES * 60 * 1000);
+
+  await tx.userVerificationCode.updateMany({
+    where: {
+      userId,
+      purpose: 'RESET_PASSWORD',
+      consumedAt: null,
+    },
+    data: { consumedAt: new Date() },
+  });
+
+  await tx.userVerificationCode.create({
+    data: {
+      userId,
+      codeHash,
+      purpose: 'RESET_PASSWORD',
+      expiresAt,
+    },
+  });
+
+  return code;
+};
+
 const getLatestActiveRegisterCode = (userId) =>
   prisma.userVerificationCode.findFirst({
     where: {
       userId,
       purpose: 'REGISTER',
+      consumedAt: null,
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+const getLatestActiveResetCode = (userId) =>
+  prisma.userVerificationCode.findFirst({
+    where: {
+      userId,
+      purpose: 'RESET_PASSWORD',
       consumedAt: null,
     },
     orderBy: { createdAt: 'desc' },
@@ -478,6 +512,129 @@ export const login = async (req, res, next) => {
         },
       },
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const forgotPassword = async (req, res, next) => {
+  try {
+    const { email } = req.validated.body;
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: { village: true },
+    });
+
+    if (!user || user.status !== 'ACTIVE') {
+      res.json({
+        success: true,
+        data: {
+          message: 'Jika email terdaftar, kode reset password akan dikirim.',
+          expiresInMinutes: RESET_CODE_TTL_MINUTES,
+          cooldownSeconds: RESET_RESEND_COOLDOWN_SECONDS,
+        },
+      });
+      return;
+    }
+
+    const latestCode = await getLatestActiveResetCode(user.id);
+    if (latestCode) {
+      const secondsSinceLastCode = Math.floor((Date.now() - latestCode.createdAt.getTime()) / 1000);
+      if (secondsSinceLastCode < RESET_RESEND_COOLDOWN_SECONDS) {
+        const waitSeconds = RESET_RESEND_COOLDOWN_SECONDS - secondsSinceLastCode;
+        throw new ApiError(429, `Tunggu ${waitSeconds} detik sebelum kirim ulang kode reset.`);
+      }
+    }
+
+    const resetCode = await prisma.$transaction(async (tx) => issueResetPasswordCode(tx, user.id));
+    const delivery = await sendPasswordResetEmail({
+      to: user.email,
+      name: user.name,
+      code: resetCode,
+      villageName: user.village?.name || 'Desa',
+    });
+
+    await writeAuditLog({
+      userId: user.id,
+      action: 'FORGOT_PASSWORD',
+      entityType: 'User',
+      entityId: user.id,
+      description: `${user.name} meminta kode reset password`,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    res.json({
+      success: true,
+      data: {
+        message: 'Jika email terdaftar, kode reset password akan dikirim.',
+        expiresInMinutes: RESET_CODE_TTL_MINUTES,
+        cooldownSeconds: RESET_RESEND_COOLDOWN_SECONDS,
+        delivery: delivery.sent ? 'email' : 'mock',
+        ...(delivery.mocked && env.nodeEnv !== 'production' ? { debugCode: resetCode } : {}),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const resetPassword = async (req, res, next) => {
+  try {
+    const { email, code, newPassword } = req.validated.body;
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user || user.status !== 'ACTIVE') {
+      throw new ApiError(422, 'Email atau kode reset tidak valid');
+    }
+
+    const verification = await prisma.userVerificationCode.findFirst({
+      where: {
+        userId: user.id,
+        purpose: 'RESET_PASSWORD',
+        consumedAt: null,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!verification || verification.expiresAt < new Date()) {
+      throw new ApiError(422, 'Kode reset tidak valid atau sudah kadaluarsa');
+    }
+
+    const validCode = verification.codeHash === hashVerificationCode(String(code).trim());
+    if (!validCode) {
+      throw new ApiError(422, 'Kode reset salah');
+    }
+
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: user.id },
+        data: { passwordHash: await bcrypt.hash(newPassword, 10) },
+      }),
+      prisma.userVerificationCode.update({
+        where: { id: verification.id },
+        data: { consumedAt: new Date() },
+      }),
+      prisma.userVerificationCode.updateMany({
+        where: {
+          userId: user.id,
+          purpose: 'RESET_PASSWORD',
+          consumedAt: null,
+        },
+        data: { consumedAt: new Date() },
+      }),
+    ]);
+
+    await writeAuditLog({
+      userId: user.id,
+      action: 'RESET_PASSWORD',
+      entityType: 'User',
+      entityId: user.id,
+      description: `${user.name} melakukan reset password`,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    res.json({ success: true, data: { message: 'Password berhasil direset. Silakan login.' } });
   } catch (error) {
     next(error);
   }

@@ -10,6 +10,8 @@ export const userCreateSchema = z.object({
     villageId: z.number().int().positive().optional(),
     roleIds: z.array(z.number().int()).optional(),
     roleCodes: z.array(z.string()).optional(),
+    useCustomPermissions: z.boolean().optional().default(false),
+    customPermissionCodes: z.array(z.string().min(2)).optional(),
   }),
 });
 
@@ -23,6 +25,8 @@ export const userUpdateSchema = z.object({
     villageId: z.number().int().positive().optional().nullable(),
     roleIds: z.array(z.number().int()).optional(),
     roleCodes: z.array(z.string()).optional(),
+    useCustomPermissions: z.boolean().optional(),
+    customPermissionCodes: z.array(z.string().min(2)).optional(),
   }),
   params: z.object({
     id: z.coerce.number().int(),

@@ -31,6 +31,26 @@ export const loginSchema = z.object({
   }),
 });
 
+export const forgotPasswordSchema = z.object({
+  body: z.object({
+    email: z.string().email(),
+  }),
+});
+
+export const resetPasswordSchema = z.object({
+  body: z
+    .object({
+      email: z.string().email(),
+      code: z.string().min(4).max(8),
+      newPassword: z.string().min(6),
+      confirmPassword: z.string().min(6),
+    })
+    .refine((payload) => payload.newPassword === payload.confirmPassword, {
+      message: 'Konfirmasi password tidak sama',
+      path: ['confirmPassword'],
+    }),
+});
+
 export const refreshSchema = z.object({
   body: z.object({
     refreshToken: z.string().min(10),

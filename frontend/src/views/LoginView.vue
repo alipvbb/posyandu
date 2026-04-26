@@ -3,8 +3,10 @@ import { reactive } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppButton from '../components/ui/AppButton.vue';
 import AppCard from '../components/ui/AppCard.vue';
+import AppDialog from '../components/ui/AppDialog.vue';
 import AppInput from '../components/ui/AppInput.vue';
 import { APP_NAME } from '../app/branding';
+import { authService } from '../services/auth.service';
 import { useAppStore } from '../stores/app';
 import { useAuthStore } from '../stores/auth';
 
@@ -18,6 +20,18 @@ const form = reactive({
   password: '',
 });
 
+const forgotDialogOpen = reactive({ open: false });
+const forgotLoading = reactive({ request: false, reset: false });
+const forgotForm = reactive({
+  email: '',
+  code: '',
+  newPassword: '',
+  confirmPassword: '',
+});
+const forgotState = reactive({
+  step: 1 as 1 | 2,
+});
+
 const submit = async () => {
   try {
     await authStore.login(form);
@@ -25,6 +39,59 @@ const submit = async () => {
     router.push(String(route.query.redirect || '/'));
   } catch (error: any) {
     appStore.pushToast(error.response?.data?.message || 'Login gagal.', 'error');
+  }
+};
+
+const openForgotPassword = () => {
+  forgotDialogOpen.open = true;
+  forgotState.step = 1;
+  forgotLoading.request = false;
+  forgotLoading.reset = false;
+  forgotForm.email = form.email || '';
+  forgotForm.code = '';
+  forgotForm.newPassword = '';
+  forgotForm.confirmPassword = '';
+};
+
+const sendForgotCode = async () => {
+  if (!forgotForm.email) {
+    appStore.pushToast('Masukkan email akun terlebih dahulu.', 'error');
+    return;
+  }
+  try {
+    forgotLoading.request = true;
+    const result = await authService.forgotPassword({ email: forgotForm.email });
+    forgotState.step = 2;
+    appStore.pushToast(result.message || 'Kode reset password telah dikirim.', 'success');
+    if (result.debugCode) {
+      appStore.pushToast(`Kode debug: ${result.debugCode}`, 'info');
+    }
+  } catch (error: any) {
+    appStore.pushToast(error?.response?.data?.message || 'Gagal mengirim kode reset password.', 'error');
+  } finally {
+    forgotLoading.request = false;
+  }
+};
+
+const submitResetPassword = async () => {
+  if (!forgotForm.code || !forgotForm.newPassword || !forgotForm.confirmPassword) {
+    appStore.pushToast('Lengkapi kode dan password baru.', 'error');
+    return;
+  }
+  try {
+    forgotLoading.reset = true;
+    const result = await authService.resetPassword({
+      email: forgotForm.email,
+      code: forgotForm.code,
+      newPassword: forgotForm.newPassword,
+      confirmPassword: forgotForm.confirmPassword,
+    });
+    appStore.pushToast(result.message || 'Password berhasil direset.', 'success');
+    forgotDialogOpen.open = false;
+  } catch (error: any) {
+    appStore.pushToast(error?.response?.data?.message || 'Reset password gagal.', 'error');
+  } finally {
+    forgotLoading.reset = false;
   }
 };
 </script>
@@ -48,6 +115,9 @@ const submit = async () => {
           </div>
           <AppInput v-model="form.email" label="Email" type="email" />
           <AppInput v-model="form.password" label="Password" type="password" />
+          <div class="inline-actions" style="justify-content: flex-end">
+            <button class="ghost-button" type="button" @click="openForgotPassword">Lupa password?</button>
+          </div>
           <AppButton type="submit" block :disabled="authStore.loading">
             {{ authStore.loading ? 'Memproses...' : 'Login' }}
           </AppButton>
@@ -55,5 +125,36 @@ const submit = async () => {
         </form>
       </AppCard>
     </div>
+
+    <AppDialog :open="forgotDialogOpen.open" title="Lupa Password" @close="forgotDialogOpen.open = false">
+      <form v-if="forgotState.step === 1" class="form-grid" @submit.prevent="sendForgotCode">
+        <p class="muted-text" style="margin: 0">
+          Masukkan email akun Anda. Kami akan kirim kode verifikasi reset password.
+        </p>
+        <AppInput v-model="forgotForm.email" label="Email akun" type="email" />
+        <div class="inline-actions">
+          <AppButton type="submit" :disabled="forgotLoading.request">
+            {{ forgotLoading.request ? 'Mengirim...' : 'Kirim Kode' }}
+          </AppButton>
+          <AppButton type="button" variant="secondary" @click="forgotDialogOpen.open = false">Batal</AppButton>
+        </div>
+      </form>
+
+      <form v-else class="form-grid" @submit.prevent="submitResetPassword">
+        <p class="muted-text" style="margin: 0">
+          Kode verifikasi sudah dikirim ke email. Isi kode dan password baru Anda.
+        </p>
+        <AppInput v-model="forgotForm.email" label="Email akun" type="email" />
+        <AppInput v-model="forgotForm.code" label="Kode verifikasi" />
+        <AppInput v-model="forgotForm.newPassword" label="Password baru" type="password" />
+        <AppInput v-model="forgotForm.confirmPassword" label="Konfirmasi password baru" type="password" />
+        <div class="inline-actions">
+          <AppButton type="submit" :disabled="forgotLoading.reset">
+            {{ forgotLoading.reset ? 'Memproses...' : 'Reset Password' }}
+          </AppButton>
+          <AppButton type="button" variant="secondary" @click="forgotState.step = 1">Kirim ulang kode</AppButton>
+        </div>
+      </form>
+    </AppDialog>
   </div>
 </template>

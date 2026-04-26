@@ -1,15 +1,7 @@
 import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/api-error.js';
 import { verifyAccessToken } from '../utils/jwt.js';
-
-const withKaderCheckupUpdatePermission = (roles, permissions) => {
-  const nextPermissions = [...permissions];
-  const isKader = roles.some((role) => role.code === 'kader-posyandu');
-  if (isKader && !nextPermissions.includes('checkups.update')) {
-    nextPermissions.push('checkups.update');
-  }
-  return nextPermissions;
-};
+import { extractCustomPermissionCodes, resolveEffectiveUserPermissions } from '../utils/user-permissions.js';
 
 export const authenticate = async (req, _res, next) => {
   try {
@@ -37,6 +29,11 @@ export const authenticate = async (req, _res, next) => {
           },
         },
       },
+      userPermissions: {
+        include: {
+          permission: true,
+        },
+      },
     });
 
     if (!user || user.status !== 'ACTIVE') {
@@ -56,10 +53,9 @@ export const authenticate = async (req, _res, next) => {
           }
         : null,
       roles: user.roles.map((item) => item.role),
-      permissions: withKaderCheckupUpdatePermission(
-        user.roles.map((item) => item.role),
-        [...new Set(user.roles.flatMap((item) => item.role.permissions.map((permission) => permission.permission.code)))],
-      ),
+      useCustomPermissions: Boolean(user.useCustomPermissions),
+      customPermissionCodes: extractCustomPermissionCodes(user),
+      permissions: resolveEffectiveUserPermissions(user),
     };
 
     next();

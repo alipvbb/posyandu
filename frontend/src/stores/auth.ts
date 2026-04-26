@@ -45,6 +45,8 @@ export const useAuthStore = defineStore('auth', {
       const explicit = this.user?.permissions.includes(permission) ?? false;
       if (explicit) return true;
 
+      if (this.user?.useCustomPermissions) return false;
+
       const roleCodes = (this.user?.roles || []).map((role) => role.code);
       if (permission === 'checkups.update' && roleCodes.includes('kader-posyandu')) return true;
       if (permission === 'checkups.update' && roleCodes.includes('petugas-kesehatan')) return true;
