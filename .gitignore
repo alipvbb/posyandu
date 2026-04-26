@@ -7,4 +7,5 @@ frontend/.env
 backend/node_modules
 frontend/node_modules
 backend/prisma/dev.db
-
+!frontend/dist/
+!frontend/dist/**

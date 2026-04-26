@@ -207,6 +207,36 @@ Untuk mode paling stabil (single origin, mudah tracking), backend bisa langsung 
 
 `http://localhost:8787`
 
+## Deploy Hostinger Tanpa Terminal hPanel
+
+Jika paket hosting Anda tidak menyediakan terminal, gunakan menu Node.js App + Git deployment.
+
+1. Pastikan branch `main` terbaru sudah ter-pull dari repo.
+2. Di konfigurasi build command isi:
+
+```bash
+npm run hostinger:build
+```
+
+3. Start command:
+
+```bash
+npm run start
+```
+
+4. Node version: gunakan `20.x` (lebih stabil untuk runtime Prisma di shared hosting).
+5. Set environment variable minimal:
+   - `DATABASE_URL`
+   - `JWT_ACCESS_SECRET`
+   - `JWT_REFRESH_SECRET`
+   - `JWT_ACCESS_EXPIRES_IN=15m`
+   - `JWT_REFRESH_EXPIRES_IN=7d`
+   - `NODE_ENV=production`
+   - `APP_PUBLIC_BASE_URL=https://posyandu.online`
+   - `CORS_ORIGIN=https://posyandu.online`
+
+Catatan: folder `frontend/dist` sudah ikut di-repo, jadi frontend tidak wajib di-build terpisah di server.
+
 ## Cara mencoba
 
 ### Login
