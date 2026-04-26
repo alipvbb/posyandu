@@ -55,6 +55,14 @@ const sendMailWithTimeout = async (transport, payload) => {
   }
 };
 
+const buildLocationLine = ({ villageName, districtName, regencyName }) => {
+  const parts = [];
+  if (villageName) parts.push(`Desa: ${villageName}`);
+  if (districtName) parts.push(`Kecamatan: ${districtName}`);
+  if (regencyName) parts.push(`Kabupaten/Kota: ${regencyName}`);
+  return parts.length ? parts.join(' | ') : null;
+};
+
 export const sendRegisterVerificationEmail = async ({ to, name, code, villageName }) => {
   const subject = `Kode Verifikasi ${APP_NAME}`;
   const text = [
@@ -90,13 +98,23 @@ export const sendRegisterVerificationEmail = async ({ to, name, code, villageNam
   }
 };
 
-export const sendPasswordResetEmail = async ({ to, name, code, villageName }) => {
-  const subject = `Kode Reset Password ${APP_NAME}`;
+export const sendPasswordResetEmail = async ({
+  to,
+  name,
+  code,
+  villageName,
+  districtName,
+  regencyName,
+  appDisplayName,
+}) => {
+  const scopedAppName = appDisplayName || APP_NAME;
+  const locationLine = buildLocationLine({ villageName, districtName, regencyName });
+  const subject = `Kode Reset Password ${scopedAppName}`;
   const text = [
     `Halo ${name},`,
     '',
-    `Kami menerima permintaan reset password untuk akun ${APP_NAME}.`,
-    `Desa: ${villageName}`,
+    `Kami menerima permintaan reset password untuk akun ${scopedAppName}.`,
+    ...(locationLine ? [locationLine] : []),
     '',
     `Kode reset password Anda: ${code}`,
     '',

@@ -255,6 +255,80 @@ const getLatestActiveResetCode = (userId) =>
     orderBy: { createdAt: 'desc' },
   });
 
+const stripAdministrativePrefix = (value, type) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (type === 'village') {
+    return raw.replace(/^(desa|kelurahan)\s+/i, '').trim();
+  }
+  if (type === 'district') {
+    return raw.replace(/^kecamatan\s+/i, '').trim();
+  }
+  if (type === 'regency') {
+    return raw.replace(/^(kabupaten|kota)\s+/i, '').trim();
+  }
+  return raw;
+};
+
+const buildScopedAppDisplayName = ({ villageName, districtName, regencyName }) => {
+  const village = stripAdministrativePrefix(villageName, 'village');
+  const district = stripAdministrativePrefix(districtName, 'district');
+  const regency = stripAdministrativePrefix(regencyName, 'regency');
+
+  const locationParts = [
+    village ? `Desa ${village}` : null,
+    district ? `Kecamatan ${district}` : null,
+    regency ? `Kabupaten ${regency}` : null,
+  ].filter(Boolean);
+
+  if (!locationParts.length) return 'POSYANDU APP';
+  return `POSYANDU APP ${locationParts.join(' ')}`;
+};
+
+const resolveResetMailLocationContext = async (user) => {
+  const fallbackVillage = user.village?.name || null;
+  if (!user.villageId) {
+    return {
+      villageName: fallbackVillage,
+      districtName: null,
+      regencyName: null,
+      appDisplayName: buildScopedAppDisplayName({
+        villageName: fallbackVillage,
+        districtName: null,
+        regencyName: null,
+      }),
+    };
+  }
+
+  const firstFamily = await prisma.family.findFirst({
+    where: { villageId: user.villageId },
+    orderBy: { createdAt: 'asc' },
+    select: {
+      domicileVillageName: true,
+      domicileDistrictName: true,
+      domicileRegencyName: true,
+      village: {
+        select: { name: true },
+      },
+    },
+  });
+
+  const villageName = firstFamily?.domicileVillageName || firstFamily?.village?.name || fallbackVillage || null;
+  const districtName = firstFamily?.domicileDistrictName || null;
+  const regencyName = firstFamily?.domicileRegencyName || null;
+
+  return {
+    villageName,
+    districtName,
+    regencyName,
+    appDisplayName: buildScopedAppDisplayName({
+      villageName,
+      districtName,
+      regencyName,
+    }),
+  };
+};
+
 export const register = async (req, res, next) => {
   try {
     const { villageName, villageCode, adminName, email, phone, password } = req.validated.body;
@@ -547,11 +621,15 @@ export const forgotPassword = async (req, res, next) => {
     }
 
     const resetCode = await prisma.$transaction(async (tx) => issueResetPasswordCode(tx, user.id));
+    const locationContext = await resolveResetMailLocationContext(user);
     const delivery = await sendPasswordResetEmail({
       to: user.email,
       name: user.name,
       code: resetCode,
-      villageName: user.village?.name || 'Desa',
+      villageName: locationContext.villageName || 'Desa',
+      districtName: locationContext.districtName,
+      regencyName: locationContext.regencyName,
+      appDisplayName: locationContext.appDisplayName,
     });
 
     if (!delivery.sent) {
