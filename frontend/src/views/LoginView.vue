@@ -14,8 +14,8 @@ const route = useRoute();
 const router = useRouter();
 
 const form = reactive({
-  email: 'admin@posyandu.local',
-  password: 'password123',
+  email: '',
+  password: '',
 });
 
 const submit = async () => {
@@ -52,7 +52,6 @@ const submit = async () => {
             {{ authStore.loading ? 'Memproses...' : 'Login' }}
           </AppButton>
           <AppButton type="button" variant="ghost" block @click="router.push('/register')">Daftar Admin Desa</AppButton>
-          <small class="muted-text">Akun default: `admin@posyandu.local` / `password123`</small>
         </form>
       </AppCard>
     </div>
