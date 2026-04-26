@@ -4,8 +4,8 @@ import http from 'node:http';
 
 const start = async () => {
   try {
-    app.listen(env.port, () => {
-      console.log(`Backend running on http://localhost:${env.port}`);
+    app.listen(env.port, '0.0.0.0', () => {
+      console.log(`Backend running on http://0.0.0.0:${env.port}`);
     });
 
     const redirectFromPort = process.env.REDIRECT_FROM_PORT

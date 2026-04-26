@@ -50,7 +50,7 @@ if (!resolvedDatabaseUrl) {
 }
 
 export const env = {
-  port: Number(process.env.PORT || 4000),
+  port: Number(process.env.PORT || 3000),
   nodeEnv: process.env.NODE_ENV || 'development',
   databaseUrl: resolvedDatabaseUrl,
   jwtAccessSecret: process.env.JWT_ACCESS_SECRET,
