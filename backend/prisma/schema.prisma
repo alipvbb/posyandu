@@ -191,6 +191,8 @@ model Family {
   domicileDistrictName String?
   domicileVillageCode  String?
   domicileVillageName  String?
+  domicileRw           String?
+  domicileRt           String?
   familyNumber  String     @unique
   headName      String
   address       String

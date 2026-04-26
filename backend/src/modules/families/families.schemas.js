@@ -47,6 +47,8 @@ const familyBody = {
   domicileDistrictName: nullableString,
   domicileVillageCode: nullableString,
   domicileVillageName: nullableString,
+  domicileRw: nullableString,
+  domicileRt: nullableString,
   familyNumber: z.string().trim().min(8, 'No KK minimal 8 karakter'),
   headName: z.string().trim().min(2, 'Nama kepala keluarga minimal 2 karakter'),
   address: z.string().trim().min(5, 'Alamat minimal 5 karakter'),

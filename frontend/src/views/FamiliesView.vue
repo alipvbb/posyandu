@@ -11,9 +11,11 @@ import EmptyState from '../components/EmptyState.vue';
 import { familiesService } from '../services/families.service';
 import { masterDataService } from '../services/master-data.service';
 import { useAppStore } from '../stores/app';
+import { useAuthStore } from '../stores/auth';
 import { useMasterDataStore } from '../stores/master-data';
 
 const appStore = useAppStore();
+const authStore = useAuthStore();
 const masterDataStore = useMasterDataStore();
 
 const extractApiErrorMessage = (error: any, fallback: string) => {
@@ -56,6 +58,8 @@ const form = reactive({
   domicileRegencyCode: '',
   domicileDistrictCode: '',
   domicileVillageCode: '',
+  domicileRw: '',
+  domicileRt: '',
   members: [] as Array<{
     relationType: string;
     fullName: string;
@@ -150,24 +154,6 @@ const removeMember = (index: number) => {
   form.members.splice(index, 1);
 };
 
-const hamletOptions = computed(() =>
-  masterDataStore.hamlets
-    .filter((item: any) => !form.villageId || Number(form.villageId) === item.villageId)
-    .map((item: any) => ({ label: item.name, value: String(item.id) })),
-);
-
-const rwOptions = computed(() =>
-  masterDataStore.rws
-    .filter((item: any) => !form.hamletId || Number(form.hamletId) === item.hamletId)
-    .map((item: any) => ({ label: item.name, value: String(item.id) })),
-);
-
-const rtOptions = computed(() =>
-  masterDataStore.rts
-    .filter((item: any) => !form.rwId || Number(form.rwId) === item.rwId)
-    .map((item: any) => ({ label: item.name, value: String(item.id) })),
-);
-
 const normalizeLocationName = (value: string | null | undefined) =>
   String(value || '')
     .toUpperCase()
@@ -193,14 +179,6 @@ const domicileVillageOptions = computed(() =>
 const getRegionNameByCode = (items: Array<{ code: string; name: string }>, code: string) =>
   items.find((item) => String(item.code) === String(code))?.name || null;
 
-const selectedDomicileRegencyName = computed(() =>
-  getRegionNameByCode(domicileOptions.regencies, form.domicileRegencyCode),
-);
-
-const selectedDomicileDistrictName = computed(() =>
-  getRegionNameByCode(domicileOptions.districts, form.domicileDistrictCode),
-);
-
 const selectedDomicileVillageName = computed(() =>
   getRegionNameByCode(domicileOptions.villages, form.domicileVillageCode),
 );
@@ -213,24 +191,33 @@ const matchedLocalVillageIds = computed(() => {
     .map((item: any) => item.id);
 });
 
-const localVillageOptions = computed(() => {
-  const matchedIds = matchedLocalVillageIds.value;
-  const source =
-    matchedIds.length > 0
-      ? masterDataStore.villages.filter((item: any) => matchedIds.includes(item.id))
-      : masterDataStore.villages;
+const actorVillageId = computed(() => Number(authStore.user?.village?.id || 0) || null);
 
-  return source.map((item: any) => ({ label: item.name, value: String(item.id) }));
-});
-
-const syncLocalVillageFromDomicile = () => {
+const getDefaultServiceVillageId = () => {
   const matchedIds = matchedLocalVillageIds.value;
-  if (matchedIds.length === 1) {
-    const autoVillageId = String(matchedIds[0]);
-    if (form.villageId !== autoVillageId) {
-      form.villageId = autoVillageId;
-    }
-  }
+  if (matchedIds.length === 1) return matchedIds[0];
+  if (actorVillageId.value) return actorVillageId.value;
+  return masterDataStore.villages[0]?.id || null;
+};
+
+const ensureLocalServiceDefaults = (preferMatchedVillage = true) => {
+  const preferredVillageId = preferMatchedVillage ? getDefaultServiceVillageId() : actorVillageId.value;
+  const finalVillageId = preferredVillageId || Number(form.villageId) || masterDataStore.villages[0]?.id || null;
+  if (!finalVillageId) return;
+
+  form.villageId = String(finalVillageId);
+  const firstHamlet = masterDataStore.hamlets.find((item: any) => item.villageId === finalVillageId);
+  if (!firstHamlet) return;
+
+  form.hamletId = String(firstHamlet.id);
+  const firstRw = masterDataStore.rws.find((item: any) => item.hamletId === firstHamlet.id);
+  if (!firstRw) return;
+
+  form.rwId = String(firstRw.id);
+  const firstRt = masterDataStore.rts.find((item: any) => item.rwId === firstRw.id);
+  if (!firstRt) return;
+
+  form.rtId = String(firstRt.id);
 };
 
 const loadDomicileProvinces = async (showError = true) => {
@@ -346,12 +333,13 @@ watch(
     form.domicileVillageCode = '';
     domicileOptions.villages = [];
     await loadDomicileVillages(value, false);
-    syncLocalVillageFromDomicile();
+    ensureLocalServiceDefaults(true);
   },
 );
 
 watch(selectedDomicileVillageName, () => {
-  syncLocalVillageFromDomicile();
+  if (hydratingDomicile.value) return;
+  ensureLocalServiceDefaults(true);
 });
 
 const resetForm = () => {
@@ -368,9 +356,12 @@ const resetForm = () => {
   form.domicileRegencyCode = '';
   form.domicileDistrictCode = '';
   form.domicileVillageCode = '';
+  form.domicileRw = '';
+  form.domicileRt = '';
   domicileOptions.regencies = [];
   domicileOptions.districts = [];
   domicileOptions.villages = [];
+  ensureLocalServiceDefaults(false);
   form.members = createDefaultMembers(form.headName);
 };
 
@@ -428,6 +419,8 @@ const editItem = async (item: any) => {
   form.domicileRegencyCode = item.domicileRegencyCode || '';
   form.domicileDistrictCode = item.domicileDistrictCode || '';
   form.domicileVillageCode = item.domicileVillageCode || '';
+  form.domicileRw = item.domicileRw || '';
+  form.domicileRt = item.domicileRt || '';
   hydratingDomicile.value = true;
   try {
     if (!domicileOptions.provinces.length) {
@@ -461,8 +454,8 @@ const editItem = async (item: any) => {
 };
 
 const save = async () => {
-  if (!form.familyNumber || !form.headName || !form.address || !form.villageId || !form.hamletId || !form.rwId || !form.rtId) {
-    appStore.pushToast('Lengkapi No KK, kepala keluarga, alamat, dan wilayah layanan posyandu.', 'error');
+  if (!form.familyNumber || !form.headName || !form.address) {
+    appStore.pushToast('Lengkapi No KK, kepala keluarga, dan alamat.', 'error');
     return;
   }
   if (
@@ -478,8 +471,10 @@ const save = async () => {
     appStore.pushToast('Tambahkan minimal 1 anggota keluarga.', 'error');
     return;
   }
-  if (matchedLocalVillageIds.value.length > 0 && !matchedLocalVillageIds.value.includes(Number(form.villageId))) {
-    appStore.pushToast('Wilayah layanan posyandu harus sesuai dengan desa domisili yang dipilih.', 'error');
+
+  ensureLocalServiceDefaults(true);
+  if (!form.villageId || !form.hamletId || !form.rwId || !form.rtId) {
+    appStore.pushToast('Wilayah layanan posyandu lokal belum tersedia. Hubungi admin sistem.', 'error');
     return;
   }
 
@@ -505,6 +500,8 @@ const save = async () => {
     domicileDistrictName,
     domicileVillageCode: form.domicileVillageCode,
     domicileVillageName,
+    domicileRw: form.domicileRw || null,
+    domicileRt: form.domicileRt || null,
     members: form.members
       .filter((member) => member.fullName.trim())
       .map((member) => ({
@@ -609,9 +606,9 @@ onMounted(async () => {
           <small class="muted-text">{{ row.address }}</small>
         </template>
         <template #wilayah="{ row }">
-          <div>{{ row.hamlet?.name || '-' }} • {{ row.rw?.name || '-' }} • {{ row.rt?.name || '-' }}</div>
+          <div>{{ row.domicileVillageName || '-' }} • {{ row.domicileDistrictName || '-' }} • {{ row.domicileRegencyName || '-' }}</div>
           <small class="muted-text">
-            {{ row.domicileVillageName || '-' }} • {{ row.domicileDistrictName || '-' }} • {{ row.domicileRegencyName || '-' }}
+            RW {{ row.domicileRw || '-' }} • RT {{ row.domicileRt || '-' }}
           </small>
         </template>
         <template #ringkas="{ row }">
@@ -671,6 +668,8 @@ onMounted(async () => {
                 :options="domicileVillageOptions"
                 :disabled="!form.domicileDistrictCode"
               />
+              <AppInput v-model="form.domicileRw" label="RW (Domisili)" />
+              <AppInput v-model="form.domicileRt" label="RT (Domisili)" />
             </div>
             <small class="muted-text">
               {{
@@ -678,26 +677,6 @@ onMounted(async () => {
                   ? 'Memuat referensi wilayah Indonesia...'
                   : 'Referensi wilayah nasional berdasarkan pilihan provinsi → kabupaten/kota → kecamatan.'
               }}
-            </small>
-          </div>
-
-          <div class="card-panel kk-meta-card">
-            <h3 class="kk-section-title">Wilayah Layanan Posyandu (Lokal)</h3>
-            <div class="kk-fields-grid">
-              <AppInput :model-value="selectedDomicileRegencyName || '-'" label="Kabupaten / Kota (Domisili)" disabled />
-              <AppInput :model-value="selectedDomicileDistrictName || '-'" label="Kecamatan (Domisili)" disabled />
-              <AppSelect
-                v-model="form.villageId"
-                label="Desa"
-                :options="localVillageOptions"
-                :disabled="!form.domicileVillageCode"
-              />
-              <AppSelect v-model="form.hamletId" label="Dusun" :options="hamletOptions" />
-              <AppSelect v-model="form.rwId" label="RW" :options="rwOptions" />
-              <AppSelect v-model="form.rtId" label="RT" :options="rtOptions" />
-            </div>
-            <small class="muted-text">
-              Desa layanan otomatis difilter agar sesuai desa/kelurahan domisili saat ada nama yang sama.
             </small>
           </div>
         </div>

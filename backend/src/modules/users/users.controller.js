@@ -43,21 +43,35 @@ const resolveRoles = async ({ roleIds, roleCodes }) => {
   return [];
 };
 
-const isVillageScopedUser = (reqUser) => Boolean(reqUser?.villageId);
+const hasGlobalScope = (reqUser) => reqUser?.roles?.some((role) => role.code === 'super-admin');
+
+const resolveActorVillageId = (reqUser) => {
+  if (hasGlobalScope(reqUser)) return null;
+  if (!reqUser?.villageId) {
+    throw new ApiError(
+      403,
+      'Akun Anda belum terhubung ke desa. Hubungi administrator sistem untuk mengaitkan desa akun ini.',
+    );
+  }
+  return reqUser.villageId;
+};
 
 const ensureSameVillageAccess = (reqUser, targetVillageId) => {
-  if (!isVillageScopedUser(reqUser)) return;
-  if (targetVillageId !== reqUser.villageId) {
+  const actorVillageId = resolveActorVillageId(reqUser);
+  if (actorVillageId === null) return;
+  if (targetVillageId !== actorVillageId) {
     throw new ApiError(403, 'Anda hanya dapat mengelola user pada desa Anda');
   }
 };
 
 const resolveTargetVillageId = (reqUser, payloadVillageId) => {
-  if (isVillageScopedUser(reqUser)) {
-    if (payloadVillageId && payloadVillageId !== reqUser.villageId) {
+  const actorVillageId = resolveActorVillageId(reqUser);
+
+  if (actorVillageId !== null) {
+    if (payloadVillageId && payloadVillageId !== actorVillageId) {
       throw new ApiError(403, 'Anda hanya dapat mengelola user pada desa Anda');
     }
-    return reqUser.villageId;
+    return actorVillageId;
   }
 
   if (payloadVillageId) return payloadVillageId;
@@ -66,10 +80,11 @@ const resolveTargetVillageId = (reqUser, payloadVillageId) => {
 
 export const listUsers = async (req, res, next) => {
   try {
+    const actorVillageId = resolveActorVillageId(req.user);
     const { page, pageSize, skip, take } = buildPagination(req.query);
     const search = req.query.search?.trim();
     const where = {
-      ...(isVillageScopedUser(req.user) ? { villageId: req.user.villageId } : {}),
+      ...(actorVillageId !== null ? { villageId: actorVillageId } : {}),
       ...(search
         ? {
             OR: [{ name: { contains: search } }, { email: { contains: search } }],

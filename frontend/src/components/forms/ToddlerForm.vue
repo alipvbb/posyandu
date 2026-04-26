@@ -339,6 +339,8 @@ const addChildToFamily = async () => {
       domicileDistrictName: family.domicileDistrictName || null,
       domicileVillageCode: family.domicileVillageCode || null,
       domicileVillageName: family.domicileVillageName || null,
+      domicileRw: family.domicileRw || null,
+      domicileRt: family.domicileRt || null,
       familyNumber: family.familyNumber,
       headName: family.headName,
       address: family.address,

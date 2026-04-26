@@ -1,0 +1,3 @@
+ALTER TABLE `Family`
+  ADD COLUMN `domicileRw` VARCHAR(32) NULL,
+  ADD COLUMN `domicileRt` VARCHAR(32) NULL;
