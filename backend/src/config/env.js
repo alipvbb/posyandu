@@ -27,7 +27,9 @@ const buildDatabaseUrlFromParts = () => {
   return `mysql://${encodedUser}:${encodedPassword}@${host}:${port}/${name}`;
 };
 
-const resolvedDatabaseUrl = process.env.DATABASE_URL || buildDatabaseUrlFromParts();
+const databaseUrlFromParts = buildDatabaseUrlFromParts();
+// Prioritaskan DB_* agar tidak bentrok dengan DATABASE_URL lama yang masih tersisa di panel hosting.
+const resolvedDatabaseUrl = databaseUrlFromParts || process.env.DATABASE_URL;
 if (resolvedDatabaseUrl && !process.env.DATABASE_URL) {
   process.env.DATABASE_URL = resolvedDatabaseUrl;
 }
