@@ -2,10 +2,23 @@ import { app } from './app.js';
 import { env } from './config/env.js';
 import http from 'node:http';
 
+process.on('unhandledRejection', (reason) => {
+  console.error('[FATAL] unhandledRejection', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('[FATAL] uncaughtException', error);
+});
+
 const start = async () => {
   try {
-    app.listen(env.port, '0.0.0.0', () => {
-      console.log(`Backend running on http://0.0.0.0:${env.port}`);
+    const server = app.listen(env.port, '0.0.0.0', () => {
+      console.log(
+        `Backend running on http://0.0.0.0:${env.port} (pid=${process.pid}, NODE_ENV=${process.env.NODE_ENV || 'development'})`,
+      );
+    });
+    server.on('error', (error) => {
+      console.error('[SERVER ERROR]', error);
     });
 
     const redirectFromPort = process.env.REDIRECT_FROM_PORT
