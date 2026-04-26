@@ -3,15 +3,44 @@ import type { AuthUser } from '../types/models';
 import { authService } from '../services/auth.service';
 import { tokenStorage } from '../services/api';
 
+const userStorageKey = 'posyandu_auth_user';
+
+const readStoredUser = (): AuthUser | null => {
+  try {
+    const raw = localStorage.getItem(userStorageKey);
+    if (!raw) return null;
+    return JSON.parse(raw) as AuthUser;
+  } catch (_error) {
+    localStorage.removeItem(userStorageKey);
+    return null;
+  }
+};
+
+const writeStoredUser = (user: AuthUser | null) => {
+  if (!user) {
+    localStorage.removeItem(userStorageKey);
+    return;
+  }
+  localStorage.setItem(userStorageKey, JSON.stringify(user));
+};
+
 export const useAuthStore = defineStore('auth', {
   state: () => ({
-    user: null as AuthUser | null,
+    user: readStoredUser() as AuthUser | null,
     loading: false,
   }),
   getters: {
     isAuthenticated: (state) => Boolean(state.user && tokenStorage.getAccessToken()),
   },
   actions: {
+    setUser(user: AuthUser | null) {
+      this.user = user;
+      writeStoredUser(user);
+    },
+    clearSession() {
+      tokenStorage.clear();
+      this.setUser(null);
+    },
     hasPermission(permission: string) {
       const explicit = this.user?.permissions.includes(permission) ?? false;
       if (explicit) return true;
@@ -25,7 +54,7 @@ export const useAuthStore = defineStore('auth', {
     async login(payload: { email: string; password: string }) {
       this.loading = true;
       try {
-        this.user = await authService.login(payload);
+        this.setUser(await authService.login(payload));
       } finally {
         this.loading = false;
       }
@@ -48,7 +77,7 @@ export const useAuthStore = defineStore('auth', {
     async verifyRegister(payload: { email: string; code: string }) {
       this.loading = true;
       try {
-        this.user = await authService.verifyRegister(payload);
+        this.setUser(await authService.verifyRegister(payload));
         return this.user;
       } finally {
         this.loading = false;
@@ -63,22 +92,28 @@ export const useAuthStore = defineStore('auth', {
       }
     },
     async loadProfile() {
-      if (!tokenStorage.getAccessToken()) return null;
-      try {
-        this.user = await authService.me();
-        return this.user;
-      } catch (_error) {
-        tokenStorage.clear();
-        this.user = null;
+      if (!tokenStorage.getAccessToken()) {
+        this.setUser(null);
         return null;
+      }
+      try {
+        this.setUser(await authService.me());
+        return this.user;
+      } catch (error: any) {
+        const status = Number(error?.response?.status || 0);
+        if (status === 401 || status === 403) {
+          this.clearSession();
+          return null;
+        }
+        // Error jaringan/intermiten: pertahankan sesi lokal agar tidak logout tiba-tiba.
+        return this.user;
       }
     },
     async logout() {
       try {
         await authService.logout();
       } finally {
-        tokenStorage.clear();
-        this.user = null;
+        this.clearSession();
       }
     },
   },

@@ -55,6 +55,10 @@ api.interceptors.request.use((config) => {
 });
 
 let refreshingPromise: Promise<string | null> | null = null;
+const shouldClearSessionOnRefreshError = (error: any) => {
+  const status = Number(error?.response?.status || 0);
+  return status === 401 || status === 403;
+};
 
 api.interceptors.response.use(
   (response) => {
@@ -82,8 +86,10 @@ api.interceptors.response.use(
           tokenStorage.setTokens(response.data.data);
           return response.data.data.accessToken as string;
         })
-        .catch(() => {
-          tokenStorage.clear();
+        .catch((refreshError) => {
+          if (shouldClearSessionOnRefreshError(refreshError)) {
+            tokenStorage.clear();
+          }
           return null;
         })
         .finally(() => {
