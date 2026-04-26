@@ -1,1 +1,0 @@
-import{d as a,o,c as s,E as n}from"./index-BDnbDbxk.js";const r=["data-tone"],d=a({__name:"AppBadge",props:{tone:{}},setup(e){return(t,c)=>(o(),s("span",{class:"status-badge","data-tone":e.tone||"blue"},[n(t.$slots,"default")],8,r))}});export{d as _};

@@ -8,6 +8,7 @@ import clipboardTextIcon from '@iconify-icons/solar/clipboard-text-bold-duotone'
 import chartSquareIcon from '@iconify-icons/solar/chart-square-bold-duotone';
 import notebookIcon from '@iconify-icons/solar/notebook-bold-duotone';
 import usersGroupIcon from '@iconify-icons/solar/users-group-rounded-bold-duotone';
+import settingsIcon from '@iconify-icons/solar/settings-bold-duotone';
 import hamburgerIcon from '@iconify-icons/solar/hamburger-menu-line-duotone';
 import userIcon from '@iconify-icons/solar/user-bold-duotone';
 import logoutIcon from '@iconify-icons/solar/logout-2-bold-duotone';
@@ -40,6 +41,7 @@ const navItems = computed(() => {
     { key: 'reports', label: 'Laporan', icon: chartSquareIcon, to: '/laporan', permission: 'reports.view', bottomNav: true },
     { key: 'kia-reference', label: 'Acuan KIA', icon: notebookIcon, to: '/acuan-kia', permission: 'dashboard.view', bottomNav: false },
     { key: 'users', label: 'Users', icon: usersGroupIcon, to: '/users', permission: 'users.manage', bottomNav: false },
+    { key: 'settings', label: 'Pengaturan', icon: settingsIcon, to: '/pengaturan', permission: 'settings.manage', bottomNav: false },
     { key: 'families-master', label: 'Master KK', icon: usersGroupIcon, to: '/master-keluarga', permission: 'toddlers.create', bottomNav: false },
   ]
     .filter((item) => !item.permission || authStore.hasPermission(item.permission))
