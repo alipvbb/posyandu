@@ -25,6 +25,8 @@ apiRouter.get('/', (_req, res) => {
     endpoints: {
       health: '/health',
       register: '/api/auth/register',
+      verifyRegister: '/api/auth/verify-register',
+      resendRegisterCode: '/api/auth/resend-register-code',
       login: '/api/auth/login',
       me: '/api/auth/me',
       toddlers: '/api/toddlers',

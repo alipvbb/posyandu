@@ -182,11 +182,13 @@ const createStarterMasterData = async (tx, village) => {
 };
 
 const hashVerificationCode = (plainCode) => crypto.createHash('sha256').update(plainCode).digest('hex');
+const REGISTER_CODE_TTL_MINUTES = 15;
+const REGISTER_RESEND_COOLDOWN_SECONDS = 60;
 
 const issueRegisterCode = async (tx, userId) => {
   const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
   const codeHash = hashVerificationCode(code);
-  const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+  const expiresAt = new Date(Date.now() + REGISTER_CODE_TTL_MINUTES * 60 * 1000);
 
   await tx.userVerificationCode.updateMany({
     where: {
@@ -208,6 +210,16 @@ const issueRegisterCode = async (tx, userId) => {
 
   return code;
 };
+
+const getLatestActiveRegisterCode = (userId) =>
+  prisma.userVerificationCode.findFirst({
+    where: {
+      userId,
+      purpose: 'REGISTER',
+      consumedAt: null,
+    },
+    orderBy: { createdAt: 'desc' },
+  });
 
 export const register = async (req, res, next) => {
   try {
@@ -274,9 +286,67 @@ export const register = async (req, res, next) => {
           code: txResult.village.code,
         },
         requiresVerification: true,
-        expiresInMinutes: 15,
+        expiresInMinutes: REGISTER_CODE_TTL_MINUTES,
         delivery: delivery.sent ? 'email' : 'mock',
         ...(delivery.mocked && env.nodeEnv !== 'production' ? { debugCode: txResult.verificationCode } : {}),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const resendRegisterCode = async (req, res, next) => {
+  try {
+    const { email } = req.validated.body;
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: { village: true },
+    });
+
+    if (!user) {
+      throw new ApiError(404, 'Akun tidak ditemukan');
+    }
+
+    if (user.status === 'ACTIVE') {
+      throw new ApiError(409, 'Akun sudah aktif. Silakan login.');
+    }
+
+    const latestCode = await getLatestActiveRegisterCode(user.id);
+    if (latestCode) {
+      const secondsSinceLastCode = Math.floor((Date.now() - latestCode.createdAt.getTime()) / 1000);
+      if (secondsSinceLastCode < REGISTER_RESEND_COOLDOWN_SECONDS) {
+        const waitSeconds = REGISTER_RESEND_COOLDOWN_SECONDS - secondsSinceLastCode;
+        throw new ApiError(429, `Tunggu ${waitSeconds} detik sebelum kirim ulang kode.`);
+      }
+    }
+
+    const verificationCode = await prisma.$transaction(async (tx) => issueRegisterCode(tx, user.id));
+    const delivery = await sendRegisterVerificationEmail({
+      to: user.email,
+      name: user.name,
+      code: verificationCode,
+      villageName: user.village?.name || 'Desa',
+    });
+
+    await writeAuditLog({
+      userId: user.id,
+      action: 'RESEND_REGISTER_CODE',
+      entityType: 'User',
+      entityId: user.id,
+      description: `${user.name} meminta kirim ulang kode verifikasi`,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    res.json({
+      success: true,
+      data: {
+        email: user.email,
+        expiresInMinutes: REGISTER_CODE_TTL_MINUTES,
+        cooldownSeconds: REGISTER_RESEND_COOLDOWN_SECONDS,
+        delivery: delivery.sent ? 'email' : 'mock',
+        ...(delivery.mocked && env.nodeEnv !== 'production' ? { debugCode: verificationCode } : {}),
       },
     });
   } catch (error) {

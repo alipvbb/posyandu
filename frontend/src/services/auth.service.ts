@@ -24,6 +24,16 @@ export const authService = {
     tokenStorage.setTokens(response.data.data.tokens);
     return response.data.data.user;
   },
+  async resendRegisterCode(payload: { email: string }) {
+    const response = await api.post('/auth/resend-register-code', payload);
+    return response.data.data as {
+      email: string;
+      expiresInMinutes: number;
+      cooldownSeconds: number;
+      delivery: 'email' | 'mock';
+      debugCode?: string;
+    };
+  },
   async login(payload: { email: string; password: string }) {
     const response = await api.post('/auth/login', payload);
     tokenStorage.setTokens(response.data.data.tokens);

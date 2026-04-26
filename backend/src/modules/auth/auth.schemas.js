@@ -18,6 +18,12 @@ export const verifyRegisterSchema = z.object({
   }),
 });
 
+export const resendRegisterCodeSchema = z.object({
+  body: z.object({
+    email: z.string().email(),
+  }),
+});
+
 export const loginSchema = z.object({
   body: z.object({
     email: z.string().email(),

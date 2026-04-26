@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import AppButton from '../components/ui/AppButton.vue';
 import AppCard from '../components/ui/AppCard.vue';
@@ -29,6 +29,26 @@ const verifyForm = reactive({
 
 const registerResult = ref<null | { delivery: string; expiresInMinutes: number; debugCode?: string }>(null);
 const showVerification = computed(() => Boolean(registerResult.value));
+const resendCooldown = ref(0);
+let resendTimer: number | null = null;
+
+const stopResendTimer = () => {
+  if (resendTimer) {
+    window.clearInterval(resendTimer);
+    resendTimer = null;
+  }
+};
+
+const startResendCooldown = (seconds: number) => {
+  stopResendTimer();
+  resendCooldown.value = seconds;
+  resendTimer = window.setInterval(() => {
+    resendCooldown.value = Math.max(0, resendCooldown.value - 1);
+    if (resendCooldown.value === 0) {
+      stopResendTimer();
+    }
+  }, 1000);
+};
 
 const submitRegister = async () => {
   if (registerForm.password !== registerForm.confirmPassword) {
@@ -52,6 +72,7 @@ const submitRegister = async () => {
       debugCode: result.debugCode,
     };
     verifyForm.email = result.email;
+    startResendCooldown(60);
     appStore.pushToast('Registrasi berhasil. Cek email untuk kode verifikasi.', 'success');
   } catch (error: any) {
     appStore.pushToast(error.response?.data?.message || 'Registrasi gagal.', 'error');
@@ -70,6 +91,25 @@ const submitVerify = async () => {
     appStore.pushToast(error.response?.data?.message || 'Verifikasi gagal.', 'error');
   }
 };
+
+const resendCode = async () => {
+  try {
+    const result = await authStore.resendRegisterCode({ email: verifyForm.email });
+    registerResult.value = {
+      delivery: result.delivery,
+      expiresInMinutes: result.expiresInMinutes,
+      debugCode: result.debugCode,
+    };
+    startResendCooldown(result.cooldownSeconds || 60);
+    appStore.pushToast('Kode verifikasi baru sudah dikirim.', 'success');
+  } catch (error: any) {
+    appStore.pushToast(error.response?.data?.message || 'Gagal kirim ulang kode.', 'error');
+  }
+};
+
+onBeforeUnmount(() => {
+  stopResendTimer();
+});
 </script>
 
 <template>
@@ -116,6 +156,9 @@ const submitVerify = async () => {
           <AppInput v-model="verifyForm.code" label="Kode Verifikasi" />
           <AppButton type="submit" block :disabled="authStore.loading">
             {{ authStore.loading ? 'Memverifikasi...' : 'Verifikasi & Masuk' }}
+          </AppButton>
+          <AppButton type="button" variant="secondary" block :disabled="authStore.loading || resendCooldown > 0" @click="resendCode">
+            {{ resendCooldown > 0 ? `Kirim ulang dalam ${resendCooldown} dtk` : 'Kirim Ulang Kode' }}
           </AppButton>
         </form>
       </AppCard>

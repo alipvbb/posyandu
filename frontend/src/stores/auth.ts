@@ -54,6 +54,14 @@ export const useAuthStore = defineStore('auth', {
         this.loading = false;
       }
     },
+    async resendRegisterCode(payload: { email: string }) {
+      this.loading = true;
+      try {
+        return await authService.resendRegisterCode(payload);
+      } finally {
+        this.loading = false;
+      }
+    },
     async loadProfile() {
       if (!tokenStorage.getAccessToken()) return null;
       try {
