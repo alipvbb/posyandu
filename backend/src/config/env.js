@@ -6,7 +6,8 @@ const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const backendRoot = path.resolve(currentDir, '../..');
 
 // Prioritaskan env file di folder backend saat dijalankan dari root monorepo.
-dotenv.config({ path: path.join(backendRoot, '.env') });
+// override:true dipakai agar env deployment lama tidak menimpa kredensial terbaru.
+dotenv.config({ path: path.join(backendRoot, '.env'), override: true });
 // Tetap dukung default dotenv lookup untuk kompatibilitas hosting.
 dotenv.config();
 
