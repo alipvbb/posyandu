@@ -168,6 +168,12 @@ const rtOptions = computed(() =>
     .map((item: any) => ({ label: item.name, value: String(item.id) })),
 );
 
+const normalizeLocationName = (value: string | null | undefined) =>
+  String(value || '')
+    .toUpperCase()
+    .replace(/^(DESA|KELURAHAN|KEL\.|DS\.)\s+/g, '')
+    .replace(/[^A-Z0-9]/g, '');
+
 const domicileProvinceOptions = computed(() =>
   domicileOptions.provinces.map((item) => ({ label: item.name, value: item.code })),
 );
@@ -186,6 +192,46 @@ const domicileVillageOptions = computed(() =>
 
 const getRegionNameByCode = (items: Array<{ code: string; name: string }>, code: string) =>
   items.find((item) => String(item.code) === String(code))?.name || null;
+
+const selectedDomicileRegencyName = computed(() =>
+  getRegionNameByCode(domicileOptions.regencies, form.domicileRegencyCode),
+);
+
+const selectedDomicileDistrictName = computed(() =>
+  getRegionNameByCode(domicileOptions.districts, form.domicileDistrictCode),
+);
+
+const selectedDomicileVillageName = computed(() =>
+  getRegionNameByCode(domicileOptions.villages, form.domicileVillageCode),
+);
+
+const matchedLocalVillageIds = computed(() => {
+  const normalizedDomicileVillage = normalizeLocationName(selectedDomicileVillageName.value);
+  if (!normalizedDomicileVillage) return [] as number[];
+  return masterDataStore.villages
+    .filter((item: any) => normalizeLocationName(item.name) === normalizedDomicileVillage)
+    .map((item: any) => item.id);
+});
+
+const localVillageOptions = computed(() => {
+  const matchedIds = matchedLocalVillageIds.value;
+  const source =
+    matchedIds.length > 0
+      ? masterDataStore.villages.filter((item: any) => matchedIds.includes(item.id))
+      : masterDataStore.villages;
+
+  return source.map((item: any) => ({ label: item.name, value: String(item.id) }));
+});
+
+const syncLocalVillageFromDomicile = () => {
+  const matchedIds = matchedLocalVillageIds.value;
+  if (matchedIds.length === 1) {
+    const autoVillageId = String(matchedIds[0]);
+    if (form.villageId !== autoVillageId) {
+      form.villageId = autoVillageId;
+    }
+  }
+};
 
 const loadDomicileProvinces = async (showError = true) => {
   domicileLoading.provinces = true;
@@ -300,8 +346,13 @@ watch(
     form.domicileVillageCode = '';
     domicileOptions.villages = [];
     await loadDomicileVillages(value, false);
+    syncLocalVillageFromDomicile();
   },
 );
+
+watch(selectedDomicileVillageName, () => {
+  syncLocalVillageFromDomicile();
+});
 
 const resetForm = () => {
   editingId.value = null;
@@ -425,6 +476,10 @@ const save = async () => {
   }
   if (!form.members.some((member) => member.fullName.trim())) {
     appStore.pushToast('Tambahkan minimal 1 anggota keluarga.', 'error');
+    return;
+  }
+  if (matchedLocalVillageIds.value.length > 0 && !matchedLocalVillageIds.value.includes(Number(form.villageId))) {
+    appStore.pushToast('Wilayah layanan posyandu harus sesuai dengan desa domisili yang dipilih.', 'error');
     return;
   }
 
@@ -629,15 +684,21 @@ onMounted(async () => {
           <div class="card-panel kk-meta-card">
             <h3 class="kk-section-title">Wilayah Layanan Posyandu (Lokal)</h3>
             <div class="kk-fields-grid">
+              <AppInput :model-value="selectedDomicileRegencyName || '-'" label="Kabupaten / Kota (Domisili)" disabled />
+              <AppInput :model-value="selectedDomicileDistrictName || '-'" label="Kecamatan (Domisili)" disabled />
               <AppSelect
                 v-model="form.villageId"
                 label="Desa"
-                :options="masterDataStore.villages.map((item: any) => ({ label: item.name, value: String(item.id) }))"
+                :options="localVillageOptions"
+                :disabled="!form.domicileVillageCode"
               />
               <AppSelect v-model="form.hamletId" label="Dusun" :options="hamletOptions" />
               <AppSelect v-model="form.rwId" label="RW" :options="rwOptions" />
               <AppSelect v-model="form.rtId" label="RT" :options="rtOptions" />
             </div>
+            <small class="muted-text">
+              Desa layanan otomatis difilter agar sesuai desa/kelurahan domisili saat ada nama yang sama.
+            </small>
           </div>
         </div>
 
