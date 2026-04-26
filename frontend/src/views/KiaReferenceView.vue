@@ -62,7 +62,7 @@ const codeTone = (code: string) => {
 </script>
 
 <template>
-  <div class="form-grid">
+  <div class="form-grid kia-reference-page">
     <div class="page-head">
       <div>
         <h2 style="margin: 0">Acuan KIA Hal. 67-79</h2>
@@ -160,3 +160,28 @@ const codeTone = (code: string) => {
   </div>
 </template>
 
+<style scoped>
+.kia-reference-page .card-panel {
+  min-width: 0;
+}
+
+.kia-reference-page .kia-table-grid {
+  align-items: start;
+}
+
+.kia-reference-page :deep(.table-wrap) {
+  width: 100%;
+}
+
+.kia-reference-page :deep(.data-table th),
+.kia-reference-page :deep(.data-table td) {
+  white-space: normal;
+}
+
+@media (min-width: 960px) {
+  .kia-reference-page :deep(.table-wrap) {
+    max-height: 560px;
+    overflow: auto;
+  }
+}
+</style>

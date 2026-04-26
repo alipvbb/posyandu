@@ -50,6 +50,7 @@
   --density-bottom-link-font-size: 0.72rem;
   --density-bottom-link-gap: 4px;
   --density-bottom-icon-size: 28px;
+  --desktop-content-max-width: 1480px;
 }
 
 * {
@@ -274,6 +275,7 @@ textarea {
   display: grid;
   gap: var(--density-grid-gap);
   overflow-x: hidden;
+  width: 100%;
 }
 
 .card-panel {
@@ -283,6 +285,7 @@ textarea {
   border-radius: var(--density-card-radius);
   padding: var(--density-card-padding);
   box-shadow: var(--shadow);
+  min-width: 0;
 }
 
 .summary-card {
@@ -303,6 +306,10 @@ textarea {
 .grid-cards {
   display: grid;
   gap: var(--density-grid-gap);
+}
+
+.grid-cards > * {
+  min-width: 0;
 }
 
 .section-head,
@@ -370,6 +377,10 @@ textarea {
   gap: var(--density-form-gap);
 }
 
+.form-grid > * {
+  min-width: 0;
+}
+
 .form-field {
   display: grid;
   gap: var(--density-field-gap);
@@ -390,12 +401,32 @@ textarea.form-input {
   background: rgba(255, 255, 255, 0.95);
   color: var(--text);
   font-size: var(--density-control-font-size);
+  min-width: 0;
 }
 
 .form-input:focus,
 textarea.form-input:focus {
   outline: 2px solid rgba(90, 163, 143, 0.22);
   border-color: var(--primary);
+}
+
+select.form-input {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #5f7f72 50%),
+    linear-gradient(135deg, #5f7f72 50%, transparent 50%),
+    linear-gradient(to right, transparent, transparent);
+  background-position:
+    calc(100% - 18px) calc(50% - 3px),
+    calc(100% - 12px) calc(50% - 3px),
+    calc(100% - 2.2rem) 0.45rem;
+  background-size:
+    6px 6px,
+    6px 6px,
+    1px calc(100% - 0.9rem);
+  background-repeat: no-repeat;
+  padding-right: 2.35rem;
 }
 
 .status-badge {
@@ -435,11 +466,14 @@ textarea.form-input:focus {
 
 .table-wrap {
   overflow: auto;
+  border-radius: 14px;
+  border: 1px solid #e3eee8;
 }
 
 .data-table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: auto;
 }
 
 .data-table th,
@@ -448,6 +482,7 @@ textarea.form-input:focus {
   text-align: left;
   border-bottom: 1px solid #edf2ef;
   vertical-align: top;
+  word-break: break-word;
 }
 
 .data-table th {
@@ -480,6 +515,10 @@ textarea.form-input:focus {
   display: grid;
   gap: 12px;
   grid-template-columns: 1fr;
+}
+
+.filters-grid > * {
+  min-width: 0;
 }
 
 .filters-grid .app-button {
@@ -1364,14 +1403,14 @@ textarea.form-input:focus {
   :root {
     --density-topbar-padding: 8px 8px 7px;
     --density-page-padding: 8px 8px calc(92px + env(safe-area-inset-bottom));
-    --density-card-padding: 9px;
+    --density-card-padding: 8px;
     --density-btn-min-height: 31px;
-    --density-btn-padding-y: 4px;
-    --density-btn-padding-x: 8px;
+    --density-btn-padding-y: 3px;
+    --density-btn-padding-x: 7px;
     --density-btn-font-size: 0.75rem;
-    --density-input-min-height: 34px;
-    --density-input-padding-y: 7px;
-    --density-input-padding-x: 9px;
+    --density-input-min-height: 33px;
+    --density-input-padding-y: 6px;
+    --density-input-padding-x: 8px;
     --density-control-font-size: 0.84rem;
     --density-label-font-size: 0.73rem;
     --density-icon-button-size: 31px;
@@ -1467,12 +1506,18 @@ textarea.form-input:focus {
 
 @media (min-width: 1180px) {
   .filters-grid {
-    grid-template-columns: 1.8fr repeat(3, minmax(0, 1fr)) auto;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     align-items: end;
+  }
+
+  .filters-grid > .form-field:first-child {
+    grid-column: span 2;
   }
 
   .filters-grid .app-button {
     width: auto;
+    min-width: 146px;
+    justify-self: start;
   }
 }
 
@@ -1493,10 +1538,17 @@ textarea.form-input:focus {
 
   .page-shell {
     padding: 24px 28px 32px;
+    width: min(100%, var(--desktop-content-max-width));
+    margin-inline: auto;
   }
 
   .grid-cards {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* Keep KIA reference table cards readable on desktop/laptop. */
+  .grid-cards.kia-table-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .bottom-nav {
@@ -1511,6 +1563,23 @@ textarea.form-input:focus {
   .idcard-preview-body {
     grid-template-columns: 1.2fr 0.8fr;
     align-items: center;
+  }
+}
+
+@media (min-width: 1280px) {
+  .grid-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .grid-cards.dashboard-split-grid,
+  .grid-cards.kia-table-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1680px) {
+  .grid-cards {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
