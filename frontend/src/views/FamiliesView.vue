@@ -9,6 +9,7 @@ import AppSelect from '../components/ui/AppSelect.vue';
 import DataTable from '../components/DataTable.vue';
 import EmptyState from '../components/EmptyState.vue';
 import { familiesService } from '../services/families.service';
+import { masterDataService } from '../services/master-data.service';
 import { useAppStore } from '../stores/app';
 import { useMasterDataStore } from '../stores/master-data';
 
@@ -34,6 +35,7 @@ const meta = ref<any>(null);
 const openForm = ref(false);
 const editingId = ref<number | null>(null);
 const confirmDeleteId = ref<number | null>(null);
+const hydratingDomicile = ref(false);
 
 const filters = reactive({
   search: '',
@@ -50,6 +52,10 @@ const form = reactive({
   hamletId: '',
   rwId: '',
   rtId: '',
+  domicileProvinceCode: '',
+  domicileRegencyCode: '',
+  domicileDistrictCode: '',
+  domicileVillageCode: '',
   members: [] as Array<{
     relationType: string;
     fullName: string;
@@ -66,6 +72,20 @@ const form = reactive({
     motherName: string;
     relationshipStatus: string;
   }>,
+});
+
+const domicileOptions = reactive({
+  provinces: [] as Array<{ code: string; name: string }>,
+  regencies: [] as Array<{ code: string; name: string }>,
+  districts: [] as Array<{ code: string; name: string }>,
+  villages: [] as Array<{ code: string; name: string }>,
+});
+
+const domicileLoading = reactive({
+  provinces: false,
+  regencies: false,
+  districts: false,
+  villages: false,
 });
 
 const createDefaultMembers = (headName = '') => [createMember('KEPALA KELUARGA', 'MALE', headName)];
@@ -148,6 +168,81 @@ const rtOptions = computed(() =>
     .map((item: any) => ({ label: item.name, value: String(item.id) })),
 );
 
+const domicileProvinceOptions = computed(() =>
+  domicileOptions.provinces.map((item) => ({ label: item.name, value: item.code })),
+);
+
+const domicileRegencyOptions = computed(() =>
+  domicileOptions.regencies.map((item) => ({ label: item.name, value: item.code })),
+);
+
+const domicileDistrictOptions = computed(() =>
+  domicileOptions.districts.map((item) => ({ label: item.name, value: item.code })),
+);
+
+const domicileVillageOptions = computed(() =>
+  domicileOptions.villages.map((item) => ({ label: item.name, value: item.code })),
+);
+
+const getRegionNameByCode = (items: Array<{ code: string; name: string }>, code: string) =>
+  items.find((item) => String(item.code) === String(code))?.name || null;
+
+const loadDomicileProvinces = async (showError = true) => {
+  domicileLoading.provinces = true;
+  try {
+    domicileOptions.provinces = await masterDataService.getIndonesiaProvinces({ limit: 200 });
+  } catch (_error) {
+    if (showError) appStore.pushToast('Gagal memuat daftar provinsi Indonesia.', 'error');
+  } finally {
+    domicileLoading.provinces = false;
+  }
+};
+
+const loadDomicileRegencies = async (provinceCode: string, showError = true) => {
+  if (!provinceCode) {
+    domicileOptions.regencies = [];
+    return;
+  }
+  domicileLoading.regencies = true;
+  try {
+    domicileOptions.regencies = await masterDataService.getIndonesiaRegencies(provinceCode, { limit: 600 });
+  } catch (_error) {
+    if (showError) appStore.pushToast('Gagal memuat daftar kabupaten/kota.', 'error');
+  } finally {
+    domicileLoading.regencies = false;
+  }
+};
+
+const loadDomicileDistricts = async (regencyCode: string, showError = true) => {
+  if (!regencyCode) {
+    domicileOptions.districts = [];
+    return;
+  }
+  domicileLoading.districts = true;
+  try {
+    domicileOptions.districts = await masterDataService.getIndonesiaDistricts(regencyCode, { limit: 800 });
+  } catch (_error) {
+    if (showError) appStore.pushToast('Gagal memuat daftar kecamatan.', 'error');
+  } finally {
+    domicileLoading.districts = false;
+  }
+};
+
+const loadDomicileVillages = async (districtCode: string, showError = true) => {
+  if (!districtCode) {
+    domicileOptions.villages = [];
+    return;
+  }
+  domicileLoading.villages = true;
+  try {
+    domicileOptions.villages = await masterDataService.getIndonesiaVillages(districtCode, { limit: 1000 });
+  } catch (_error) {
+    if (showError) appStore.pushToast('Gagal memuat daftar desa/kelurahan.', 'error');
+  } finally {
+    domicileLoading.villages = false;
+  }
+};
+
 watch(
   () => form.villageId,
   () => {
@@ -172,6 +267,42 @@ watch(
   },
 );
 
+watch(
+  () => form.domicileProvinceCode,
+  async (value) => {
+    if (hydratingDomicile.value) return;
+    form.domicileRegencyCode = '';
+    form.domicileDistrictCode = '';
+    form.domicileVillageCode = '';
+    domicileOptions.regencies = [];
+    domicileOptions.districts = [];
+    domicileOptions.villages = [];
+    await loadDomicileRegencies(value, false);
+  },
+);
+
+watch(
+  () => form.domicileRegencyCode,
+  async (value) => {
+    if (hydratingDomicile.value) return;
+    form.domicileDistrictCode = '';
+    form.domicileVillageCode = '';
+    domicileOptions.districts = [];
+    domicileOptions.villages = [];
+    await loadDomicileDistricts(value, false);
+  },
+);
+
+watch(
+  () => form.domicileDistrictCode,
+  async (value) => {
+    if (hydratingDomicile.value) return;
+    form.domicileVillageCode = '';
+    domicileOptions.villages = [];
+    await loadDomicileVillages(value, false);
+  },
+);
+
 const resetForm = () => {
   editingId.value = null;
   form.familyNumber = '';
@@ -182,6 +313,13 @@ const resetForm = () => {
   form.hamletId = '';
   form.rwId = '';
   form.rtId = '';
+  form.domicileProvinceCode = '';
+  form.domicileRegencyCode = '';
+  form.domicileDistrictCode = '';
+  form.domicileVillageCode = '';
+  domicileOptions.regencies = [];
+  domicileOptions.districts = [];
+  domicileOptions.villages = [];
   form.members = createDefaultMembers(form.headName);
 };
 
@@ -225,7 +363,7 @@ const applyKkTemplate = () => {
   form.members = createCompleteKkTemplate(form.headName);
 };
 
-const editItem = (item: any) => {
+const editItem = async (item: any) => {
   editingId.value = item.id;
   form.familyNumber = item.familyNumber || '';
   form.headName = item.headName || '';
@@ -235,6 +373,21 @@ const editItem = (item: any) => {
   form.hamletId = item.hamletId ? String(item.hamletId) : '';
   form.rwId = item.rwId ? String(item.rwId) : '';
   form.rtId = item.rtId ? String(item.rtId) : '';
+  form.domicileProvinceCode = item.domicileProvinceCode || '';
+  form.domicileRegencyCode = item.domicileRegencyCode || '';
+  form.domicileDistrictCode = item.domicileDistrictCode || '';
+  form.domicileVillageCode = item.domicileVillageCode || '';
+  hydratingDomicile.value = true;
+  try {
+    if (!domicileOptions.provinces.length) {
+      await loadDomicileProvinces(false);
+    }
+    await loadDomicileRegencies(form.domicileProvinceCode, false);
+    await loadDomicileDistricts(form.domicileRegencyCode, false);
+    await loadDomicileVillages(form.domicileDistrictCode, false);
+  } finally {
+    hydratingDomicile.value = false;
+  }
   form.members = Array.isArray(item.members) && item.members.length
     ? item.members.map((member: any) => ({
         relationType: member.relationType || 'ANAK',
@@ -258,13 +411,27 @@ const editItem = (item: any) => {
 
 const save = async () => {
   if (!form.familyNumber || !form.headName || !form.address || !form.villageId || !form.hamletId || !form.rwId || !form.rtId) {
-    appStore.pushToast('Lengkapi No KK, kepala keluarga, alamat, dan wilayah.', 'error');
+    appStore.pushToast('Lengkapi No KK, kepala keluarga, alamat, dan wilayah layanan posyandu.', 'error');
+    return;
+  }
+  if (
+    !form.domicileProvinceCode ||
+    !form.domicileRegencyCode ||
+    !form.domicileDistrictCode ||
+    !form.domicileVillageCode
+  ) {
+    appStore.pushToast('Lengkapi wilayah domisili nasional: provinsi, kabupaten/kota, kecamatan, dan desa/kelurahan.', 'error');
     return;
   }
   if (!form.members.some((member) => member.fullName.trim())) {
     appStore.pushToast('Tambahkan minimal 1 anggota keluarga.', 'error');
     return;
   }
+
+  const domicileProvinceName = getRegionNameByCode(domicileOptions.provinces, form.domicileProvinceCode);
+  const domicileRegencyName = getRegionNameByCode(domicileOptions.regencies, form.domicileRegencyCode);
+  const domicileDistrictName = getRegionNameByCode(domicileOptions.districts, form.domicileDistrictCode);
+  const domicileVillageName = getRegionNameByCode(domicileOptions.villages, form.domicileVillageCode);
 
   const payload = {
     familyNumber: form.familyNumber,
@@ -275,6 +442,14 @@ const save = async () => {
     hamletId: Number(form.hamletId),
     rwId: Number(form.rwId),
     rtId: Number(form.rtId),
+    domicileProvinceCode: form.domicileProvinceCode,
+    domicileProvinceName,
+    domicileRegencyCode: form.domicileRegencyCode,
+    domicileRegencyName,
+    domicileDistrictCode: form.domicileDistrictCode,
+    domicileDistrictName,
+    domicileVillageCode: form.domicileVillageCode,
+    domicileVillageName,
     members: form.members
       .filter((member) => member.fullName.trim())
       .map((member) => ({
@@ -326,6 +501,7 @@ const remove = async () => {
 
 onMounted(async () => {
   await masterDataStore.fetchAll();
+  await loadDomicileProvinces(false);
   await load();
 });
 </script>
@@ -378,8 +554,10 @@ onMounted(async () => {
           <small class="muted-text">{{ row.address }}</small>
         </template>
         <template #wilayah="{ row }">
-          <div>{{ row.hamlet?.name || '-' }}</div>
-          <small class="muted-text">{{ row.rw?.name || '-' }} • {{ row.rt?.name || '-' }}</small>
+          <div>{{ row.hamlet?.name || '-' }} • {{ row.rw?.name || '-' }} • {{ row.rt?.name || '-' }}</div>
+          <small class="muted-text">
+            {{ row.domicileVillageName || '-' }} • {{ row.domicileDistrictName || '-' }} • {{ row.domicileRegencyName || '-' }}
+          </small>
         </template>
         <template #ringkas="{ row }">
           <small class="muted-text">Anggota: {{ row.memberCount || 0 }} • Anak di KK: {{ childCount(row) }} • Balita tercatat: {{ row.toddlerCount }}</small>
@@ -417,7 +595,39 @@ onMounted(async () => {
           </div>
 
           <div class="card-panel kk-meta-card">
-            <h3 class="kk-section-title">Wilayah Domisili</h3>
+            <h3 class="kk-section-title">Wilayah Domisili (Indonesia)</h3>
+            <div class="kk-fields-grid">
+              <AppSelect v-model="form.domicileProvinceCode" label="Provinsi" :options="domicileProvinceOptions" />
+              <AppSelect
+                v-model="form.domicileRegencyCode"
+                label="Kabupaten / Kota"
+                :options="domicileRegencyOptions"
+                :disabled="!form.domicileProvinceCode"
+              />
+              <AppSelect
+                v-model="form.domicileDistrictCode"
+                label="Kecamatan"
+                :options="domicileDistrictOptions"
+                :disabled="!form.domicileRegencyCode"
+              />
+              <AppSelect
+                v-model="form.domicileVillageCode"
+                label="Desa / Kelurahan"
+                :options="domicileVillageOptions"
+                :disabled="!form.domicileDistrictCode"
+              />
+            </div>
+            <small class="muted-text">
+              {{
+                domicileLoading.provinces || domicileLoading.regencies || domicileLoading.districts || domicileLoading.villages
+                  ? 'Memuat referensi wilayah Indonesia...'
+                  : 'Referensi wilayah nasional berdasarkan pilihan provinsi → kabupaten/kota → kecamatan.'
+              }}
+            </small>
+          </div>
+
+          <div class="card-panel kk-meta-card">
+            <h3 class="kk-section-title">Wilayah Layanan Posyandu (Lokal)</h3>
             <div class="kk-fields-grid">
               <AppSelect
                 v-model="form.villageId"
@@ -610,11 +820,17 @@ onMounted(async () => {
 
 @media (min-width: 980px) {
   .kk-meta-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .kk-member-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  .kk-meta-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 

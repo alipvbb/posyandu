@@ -183,6 +183,14 @@ model Family {
   hamletId      Int
   rwId          Int
   rtId          Int
+  domicileProvinceCode String?
+  domicileProvinceName String?
+  domicileRegencyCode  String?
+  domicileRegencyName  String?
+  domicileDistrictCode String?
+  domicileDistrictName String?
+  domicileVillageCode  String?
+  domicileVillageName  String?
   familyNumber  String     @unique
   headName      String
   address       String
@@ -199,6 +207,10 @@ model Family {
   toddlers      Toddler[]
 
   @@index([hamletId, rwId, rtId])
+  @@index([domicileProvinceCode])
+  @@index([domicileRegencyCode])
+  @@index([domicileDistrictCode])
+  @@index([domicileVillageCode])
 }
 
 model FamilyMember {
