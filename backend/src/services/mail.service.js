@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import nodemailer from 'nodemailer';
 import { APP_NAME } from '../config/app-meta.js';
 import { env } from '../config/env.js';
@@ -5,19 +6,32 @@ import { env } from '../config/env.js';
 let transporter;
 
 const canUseSmtp = () => Boolean(env.smtpHost && env.smtpUser && env.smtpPass);
+const canUseSendmail = () => existsSync('/usr/sbin/sendmail');
 
 const getTransporter = () => {
   if (transporter) return transporter;
 
-  transporter = nodemailer.createTransport({
-    host: env.smtpHost,
-    port: env.smtpPort,
-    secure: env.smtpSecure,
-    auth: {
-      user: env.smtpUser,
-      pass: env.smtpPass,
-    },
-  });
+  if (canUseSmtp()) {
+    transporter = nodemailer.createTransport({
+      host: env.smtpHost,
+      port: env.smtpPort,
+      secure: env.smtpSecure,
+      auth: {
+        user: env.smtpUser,
+        pass: env.smtpPass,
+      },
+    });
+    return transporter;
+  }
+
+  if (canUseSendmail()) {
+    transporter = nodemailer.createTransport({
+      sendmail: true,
+      newline: 'unix',
+      path: '/usr/sbin/sendmail',
+    });
+    return transporter;
+  }
 
   return transporter;
 };
@@ -36,17 +50,18 @@ export const sendRegisterVerificationEmail = async ({ to, name, code, villageNam
     'Jika Anda tidak merasa mendaftar, abaikan email ini.',
   ].join('\n');
 
-  if (!canUseSmtp()) {
+  const transport = getTransporter();
+  if (!transport) {
     console.warn(`[MAIL MOCK] to=${to} subject="${subject}" code=${code}`);
     return { sent: false, mocked: true };
   }
 
-  await getTransporter().sendMail({
+  await transport.sendMail({
     from: env.smtpFrom,
     to,
     subject,
     text,
   });
 
-  return { sent: true, mocked: false };
+  return { sent: true, mocked: false, channel: canUseSmtp() ? 'smtp' : 'sendmail' };
 };
