@@ -1,4 +1,5 @@
 import cookieParser from 'cookie-parser';
+import compression from 'compression';
 import cors from 'cors';
 import express from 'express';
 import { existsSync } from 'node:fs';
@@ -20,6 +21,11 @@ app.use(
   }),
 );
 app.use(helmet());
+app.use(
+  compression({
+    threshold: 1024,
+  }),
+);
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -37,9 +43,30 @@ app.use('/api', apiRouter);
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const frontendDistPath = path.resolve(currentDir, '../../frontend/dist');
+const frontendAssetsPath = path.resolve(frontendDistPath, 'assets');
 
 if (existsSync(frontendDistPath)) {
-  app.use(express.static(frontendDistPath));
+  if (existsSync(frontendAssetsPath)) {
+    app.use(
+      '/assets',
+      express.static(frontendAssetsPath, {
+        maxAge: '365d',
+        immutable: true,
+      }),
+    );
+  }
+
+  app.use(
+    express.static(frontendDistPath, {
+      maxAge: '1d',
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('index.html')) {
+          res.setHeader('Cache-Control', 'no-cache');
+        }
+      },
+    }),
+  );
+
   app.get(/^(?!\/api(?:\/|$)|\/health$).*/, (req, res, next) => {
     if (req.path.startsWith('/api') || req.path === '/health') {
       return next();
