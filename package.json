@@ -4,7 +4,7 @@
   "scripts": {
     "install:all": "npm --prefix backend install --include=dev && npm --prefix frontend install --include=dev",
     "build": "npm run install:all && npm run prisma:generate && npm run build:frontend",
-    "hostinger:build": "npm --prefix backend install --omit=dev --no-audit --no-fund && npm --prefix backend run prisma:generate",
+    "hostinger:build": "npm --prefix backend install --omit=dev --no-audit --no-fund && npm --prefix backend run prisma:migrate:deploy && npm --prefix backend run prisma:generate",
     "start": "npm --prefix backend run start",
     "dev:backend": "npm --prefix backend run dev",
     "dev:frontend": "npm --prefix frontend run dev",

@@ -55,13 +55,18 @@ export const sendRegisterVerificationEmail = async ({ to, name, code, villageNam
     console.warn(`[MAIL MOCK] to=${to} subject="${subject}" code=${code}`);
     return { sent: false, mocked: true };
   }
+  try {
+    await transport.sendMail({
+      from: env.smtpFrom,
+      to,
+      subject,
+      text,
+    });
 
-  await transport.sendMail({
-    from: env.smtpFrom,
-    to,
-    subject,
-    text,
-  });
-
-  return { sent: true, mocked: false, channel: canUseSmtp() ? 'smtp' : 'sendmail' };
+    return { sent: true, mocked: false, channel: canUseSmtp() ? 'smtp' : 'sendmail' };
+  } catch (error) {
+    console.error('[MAIL ERROR] gagal kirim email verifikasi, fallback ke mock', error);
+    console.warn(`[MAIL MOCK] to=${to} subject="${subject}" code=${code}`);
+    return { sent: false, mocked: true, channel: 'mock-fallback' };
+  }
 };
