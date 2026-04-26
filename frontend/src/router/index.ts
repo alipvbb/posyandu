@@ -10,6 +10,12 @@ const routes = [
     meta: { public: true, guestOnly: true, layout: 'auth' },
   },
   {
+    path: '/register',
+    name: 'register',
+    component: () => import('../views/RegisterView.vue'),
+    meta: { public: true, guestOnly: true, layout: 'auth' },
+  },
+  {
     path: '/public/cards/:token',
     name: 'public-card',
     component: () => import('../views/PublicCardView.vue'),

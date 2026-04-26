@@ -24,6 +24,7 @@ export const authenticate = async (req, _res, next) => {
     const user = await prisma.user.findUnique({
       where: { id: decoded.sub },
       include: {
+        village: true,
         roles: {
           include: {
             role: {
@@ -46,6 +47,14 @@ export const authenticate = async (req, _res, next) => {
       id: user.id,
       name: user.name,
       email: user.email,
+      villageId: user.villageId || null,
+      village: user.village
+        ? {
+            id: user.village.id,
+            name: user.village.name,
+            code: user.village.code,
+          }
+        : null,
       roles: user.roles.map((item) => item.role),
       permissions: withKaderCheckupUpdatePermission(
         user.roles.map((item) => item.role),

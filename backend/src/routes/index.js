@@ -24,6 +24,7 @@ apiRouter.get('/', (_req, res) => {
     message: `API ${APP_SHORT_NAME} aktif`,
     endpoints: {
       health: '/health',
+      register: '/api/auth/register',
       login: '/api/auth/login',
       me: '/api/auth/me',
       toddlers: '/api/toddlers',

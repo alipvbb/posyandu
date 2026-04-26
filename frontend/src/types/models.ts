@@ -3,6 +3,7 @@ export interface AuthUser {
   name: string;
   email: string;
   status: string;
+  village: { id: number; name: string; code: string } | null;
   roles: Array<{ id: number; code: string; name: string }>;
   permissions: string[];
 }

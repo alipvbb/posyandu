@@ -30,6 +30,30 @@ export const useAuthStore = defineStore('auth', {
         this.loading = false;
       }
     },
+    async register(payload: {
+      villageName: string;
+      villageCode?: string;
+      adminName: string;
+      email: string;
+      phone?: string | null;
+      password: string;
+    }) {
+      this.loading = true;
+      try {
+        return await authService.register(payload);
+      } finally {
+        this.loading = false;
+      }
+    },
+    async verifyRegister(payload: { email: string; code: string }) {
+      this.loading = true;
+      try {
+        this.user = await authService.verifyRegister(payload);
+        return this.user;
+      } finally {
+        this.loading = false;
+      }
+    },
     async loadProfile() {
       if (!tokenStorage.getAccessToken()) return null;
       try {

@@ -1,5 +1,23 @@
 import { z } from 'zod';
 
+export const registerSchema = z.object({
+  body: z.object({
+    villageName: z.string().min(3),
+    villageCode: z.string().min(3).max(32).optional(),
+    adminName: z.string().min(3),
+    email: z.string().email(),
+    phone: z.string().optional().nullable(),
+    password: z.string().min(6),
+  }),
+});
+
+export const verifyRegisterSchema = z.object({
+  body: z.object({
+    email: z.string().email(),
+    code: z.string().min(4).max(8),
+  }),
+});
+
 export const loginSchema = z.object({
   body: z.object({
     email: z.string().email(),
@@ -19,4 +37,3 @@ export const changePasswordSchema = z.object({
     newPassword: z.string().min(6),
   }),
 });
-

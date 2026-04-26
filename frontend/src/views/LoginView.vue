@@ -51,6 +51,7 @@ const submit = async () => {
           <AppButton type="submit" block :disabled="authStore.loading">
             {{ authStore.loading ? 'Memproses...' : 'Login' }}
           </AppButton>
+          <AppButton type="button" variant="ghost" block @click="router.push('/register')">Daftar Admin Desa</AppButton>
           <small class="muted-text">Akun default: `admin@posyandu.local` / `password123`</small>
         </form>
       </AppCard>

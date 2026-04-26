@@ -88,12 +88,14 @@ onMounted(load);
         :columns="[
           { key: 'name', label: 'Nama' },
           { key: 'email', label: 'Email' },
+          { key: 'village', label: 'Desa' },
           { key: 'roles', label: 'Role' },
           { key: 'status', label: 'Status' },
           { key: 'aksi', label: 'Aksi' },
         ]"
         :rows="users"
       >
+        <template #village="{ row }">{{ row.village?.name || '-' }}</template>
         <template #roles="{ row }">{{ row.roles.map((item: any) => item.name).join(', ') }}</template>
         <template #aksi="{ row }">
           <button class="ghost-button" type="button" @click="editUser(row)">Edit</button>
@@ -129,4 +131,3 @@ onMounted(load);
     </AppDialog>
   </div>
 </template>
-

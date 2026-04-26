@@ -5,6 +5,7 @@ import { ApiError } from '../../utils/api-error.js';
 import { buildMeta, buildPagination } from '../../utils/pagination.js';
 
 const userInclude = {
+  village: true,
   roles: {
     include: {
       role: true,
@@ -20,6 +21,13 @@ const mapUser = (user) => ({
   status: user.status,
   lastLoginAt: user.lastLoginAt,
   createdAt: user.createdAt,
+  village: user.village
+    ? {
+        id: user.village.id,
+        name: user.village.name,
+        code: user.village.code,
+      }
+    : null,
   roles: user.roles.map((item) => item.role),
 });
 
@@ -35,15 +43,39 @@ const resolveRoles = async ({ roleIds, roleCodes }) => {
   return [];
 };
 
+const isVillageScopedUser = (reqUser) => Boolean(reqUser?.villageId);
+
+const ensureSameVillageAccess = (reqUser, targetVillageId) => {
+  if (!isVillageScopedUser(reqUser)) return;
+  if (targetVillageId !== reqUser.villageId) {
+    throw new ApiError(403, 'Anda hanya dapat mengelola user pada desa Anda');
+  }
+};
+
+const resolveTargetVillageId = (reqUser, payloadVillageId) => {
+  if (isVillageScopedUser(reqUser)) {
+    if (payloadVillageId && payloadVillageId !== reqUser.villageId) {
+      throw new ApiError(403, 'Anda hanya dapat mengelola user pada desa Anda');
+    }
+    return reqUser.villageId;
+  }
+
+  if (payloadVillageId) return payloadVillageId;
+  return null;
+};
+
 export const listUsers = async (req, res, next) => {
   try {
     const { page, pageSize, skip, take } = buildPagination(req.query);
     const search = req.query.search?.trim();
-    const where = search
-      ? {
-          OR: [{ name: { contains: search } }, { email: { contains: search } }],
-        }
-      : {};
+    const where = {
+      ...(isVillageScopedUser(req.user) ? { villageId: req.user.villageId } : {}),
+      ...(search
+        ? {
+            OR: [{ name: { contains: search } }, { email: { contains: search } }],
+          }
+        : {}),
+    };
 
     const [users, total] = await Promise.all([
       prisma.user.findMany({
@@ -68,12 +100,13 @@ export const listUsers = async (req, res, next) => {
 
 export const createUser = async (req, res, next) => {
   try {
-    const { name, email, password, phone, status, roleIds, roleCodes } = req.validated.body;
+    const { name, email, password, phone, status, roleIds, roleCodes, villageId } = req.validated.body;
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
       throw new ApiError(409, 'Email sudah digunakan');
     }
 
+    const targetVillageId = resolveTargetVillageId(req.user, villageId);
     const roles = await resolveRoles({ roleIds, roleCodes });
     const user = await prisma.user.create({
       data: {
@@ -81,6 +114,7 @@ export const createUser = async (req, res, next) => {
         email,
         phone,
         status,
+        villageId: targetVillageId,
         passwordHash: await bcrypt.hash(password, 10),
         roles: {
           create: roles.map((role) => ({
@@ -117,12 +151,19 @@ export const updateUser = async (req, res, next) => {
       throw new ApiError(404, 'User tidak ditemukan');
     }
 
+    ensureSameVillageAccess(req.user, existing.villageId);
+
     const roles = await resolveRoles(payload);
     const data = {
       name: payload.name,
       email: payload.email,
       phone: payload.phone,
       status: payload.status,
+      ...(payload.villageId !== undefined
+        ? {
+            villageId: resolveTargetVillageId(req.user, payload.villageId || undefined),
+          }
+        : {}),
     };
 
     if (payload.password) {
@@ -172,6 +213,8 @@ export const deleteUser = async (req, res, next) => {
     const user = await prisma.user.findUnique({ where: { id } });
     if (!user) throw new ApiError(404, 'User tidak ditemukan');
 
+    ensureSameVillageAccess(req.user, user.villageId);
+
     await prisma.user.delete({ where: { id } });
     await writeAuditLog({
       userId: req.user.id,
@@ -188,4 +231,3 @@ export const deleteUser = async (req, res, next) => {
     next(error);
   }
 };
-

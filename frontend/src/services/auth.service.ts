@@ -1,6 +1,29 @@
 import { api, tokenStorage } from './api';
 
 export const authService = {
+  async register(payload: {
+    villageName: string;
+    villageCode?: string;
+    adminName: string;
+    email: string;
+    phone?: string | null;
+    password: string;
+  }) {
+    const response = await api.post('/auth/register', payload);
+    return response.data.data as {
+      email: string;
+      requiresVerification: boolean;
+      expiresInMinutes: number;
+      delivery: 'email' | 'mock';
+      debugCode?: string;
+      village: { id: number; name: string; code: string };
+    };
+  },
+  async verifyRegister(payload: { email: string; code: string }) {
+    const response = await api.post('/auth/verify-register', payload);
+    tokenStorage.setTokens(response.data.data.tokens);
+    return response.data.data.user;
+  },
   async login(payload: { email: string; password: string }) {
     const response = await api.post('/auth/login', payload);
     tokenStorage.setTokens(response.data.data.tokens);
@@ -19,4 +42,3 @@ export const authService = {
     return response.data.data;
   },
 };
-

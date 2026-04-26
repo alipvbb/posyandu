@@ -42,13 +42,18 @@ model User {
   email          String     @unique
   passwordHash   String
   phone          String?
+  villageId      Int?
   status         UserStatus @default(ACTIVE)
   lastLoginAt    DateTime?
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
+  village        Village?   @relation(fields: [villageId], references: [id], onDelete: SetNull)
   roles          UserRole[]
   checkups       Checkup[]
   auditLogs      AuditLog[]
+  verificationCodes UserVerificationCode[]
+
+  @@index([villageId])
 }
 
 model Role {
@@ -98,6 +103,7 @@ model Village {
   code       String     @unique
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
+  users      User[]
   hamlets    Hamlet[]
   posyandus  Posyandu[]
   families   Family[]
@@ -418,4 +424,18 @@ model AuditLog {
 
   @@index([action, createdAt(sort: Desc)])
   @@index([userId, createdAt(sort: Desc)])
+}
+
+model UserVerificationCode {
+  id         Int       @id @default(autoincrement())
+  userId     Int
+  codeHash   String
+  purpose    String    @default("REGISTER")
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose, createdAt(sort: Desc)])
+  @@index([expiresAt])
 }

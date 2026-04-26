@@ -237,6 +237,17 @@ async function main() {
     },
   });
 
+  await prisma.user.updateMany({
+    where: {
+      email: {
+        in: defaultUsers.map((item) => item.email),
+      },
+    },
+    data: {
+      villageId: village.id,
+    },
+  });
+
   const hamlets = [];
   const rws = [];
   const rts = [];
