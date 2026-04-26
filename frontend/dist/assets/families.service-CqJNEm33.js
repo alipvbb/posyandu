@@ -1,0 +1,1 @@
+import{s}from"./index-BDnbDbxk.js";const n={async list(e={}){return(await s.get("/families",{params:e})).data},async create(e){return(await s.post("/families",e)).data.data},async update(e,a){return(await s.put(`/families/${e}`,a)).data.data},async remove(e){return(await s.delete(`/families/${e}`)).data.data}};export{n as f};
