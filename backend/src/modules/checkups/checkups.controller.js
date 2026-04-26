@@ -3,6 +3,7 @@ import dayjs from 'dayjs';
 import { writeAuditLog } from '../../services/audit.service.js';
 import { calculateAgeInMonths, evaluateGrowthStatus } from '../../services/growth.service.js';
 import { ApiError } from '../../utils/api-error.js';
+import { ensureVillageAccess, getActorVillageId } from '../../utils/village-scope.js';
 import { mapCheckup } from '../balita/balita.shared.js';
 
 const createGrowthLog = (result, toddlerId, checkupId, previousCheckupId = null) => ({
@@ -18,14 +19,29 @@ const createGrowthLog = (result, toddlerId, checkupId, previousCheckupId = null)
   note: result.summary,
 });
 
+const ensurePosyanduVillageAccess = async (reqUser, posyanduId) => {
+  const actorVillageId = getActorVillageId(reqUser);
+  if (actorVillageId === null || !posyanduId) return;
+  const posyandu = await prisma.posyandu.findUnique({
+    where: { id: Number(posyanduId) },
+    select: { villageId: true },
+  });
+  if (!posyandu) throw new ApiError(400, 'Posyandu tidak ditemukan');
+  ensureVillageAccess(reqUser, posyandu.villageId, 'Anda hanya dapat memilih posyandu pada desa Anda');
+};
+
 export const listToddlerCheckups = async (req, res, next) => {
   try {
+    const actorVillageId = getActorVillageId(req.user);
     const toddlerId = Number(req.params.id);
     const toddler = await prisma.toddler.findUnique({
       where: { id: toddlerId },
-      select: { id: true, gender: true },
+      select: { id: true, gender: true, family: { select: { villageId: true } } },
     });
     if (!toddler) throw new ApiError(404, 'Balita tidak ditemukan');
+    if (actorVillageId !== null) {
+      ensureVillageAccess(req.user, toddler.family?.villageId, 'Anda hanya dapat melihat pemeriksaan pada desa Anda');
+    }
 
     const checkups = await prisma.checkup.findMany({
       where: { toddlerId },
@@ -59,6 +75,7 @@ export const listToddlerCheckups = async (req, res, next) => {
 
 export const getMonthlyCheckupOverview = async (req, res, next) => {
   try {
+    const actorVillageId = getActorVillageId(req.user);
     const fallbackFromDate = req.query.date ? dayjs(String(req.query.date)) : null;
     const requestedMonth = req.query.month
       ? dayjs(`${String(req.query.month)}-01`)
@@ -70,7 +87,10 @@ export const getMonthlyCheckupOverview = async (req, res, next) => {
 
     const [activeToddlers, checkupsAtMonthRaw] = await Promise.all([
       prisma.toddler.findMany({
-        where: { status: 'ACTIVE' },
+        where: {
+          status: 'ACTIVE',
+          ...(actorVillageId === null ? {} : { family: { is: { villageId: actorVillageId } } }),
+        },
         include: {
           hamlet: true,
           rw: true,
@@ -91,6 +111,7 @@ export const getMonthlyCheckupOverview = async (req, res, next) => {
           },
           toddler: {
             status: 'ACTIVE',
+            ...(actorVillageId === null ? {} : { family: { is: { villageId: actorVillageId } } }),
           },
         },
         include: {
@@ -193,8 +214,13 @@ export const createCheckup = async (req, res, next) => {
   try {
     const toddlerId = req.validated.params.id;
     const payload = req.validated.body;
-    const toddler = await prisma.toddler.findUnique({ where: { id: toddlerId } });
+    const toddler = await prisma.toddler.findUnique({
+      where: { id: toddlerId },
+      include: { family: { select: { villageId: true } } },
+    });
     if (!toddler) throw new ApiError(404, 'Balita tidak ditemukan');
+    ensureVillageAccess(req.user, toddler.family?.villageId, 'Anda hanya dapat input pemeriksaan pada desa Anda');
+    await ensurePosyanduVillageAccess(req.user, payload.posyanduId);
 
     const previousCheckup = await prisma.checkup.findFirst({
       where: { toddlerId },
@@ -287,8 +313,12 @@ export const updateCheckup = async (req, res, next) => {
   try {
     const id = req.validated.params.id;
     const payload = req.validated.body;
-    const current = await prisma.checkup.findUnique({ where: { id }, include: { toddler: true } });
+    const current = await prisma.checkup.findUnique({
+      where: { id },
+      include: { toddler: { include: { family: { select: { villageId: true } } } } },
+    });
     if (!current) throw new ApiError(404, 'Pemeriksaan tidak ditemukan');
+    ensureVillageAccess(req.user, current.toddler.family?.villageId, 'Anda hanya dapat mengubah pemeriksaan pada desa Anda');
 
     const previousCheckup = await prisma.checkup.findFirst({
       where: { toddlerId: current.toddlerId, examDate: { lt: payload.examDate || current.examDate }, id: { not: id } },
@@ -303,6 +333,7 @@ export const updateCheckup = async (req, res, next) => {
       headCircumference: payload.headCircumference ?? (current.headCircumference ? Number(current.headCircumference) : null),
       muac: payload.muac ?? (current.muac ? Number(current.muac) : null),
     };
+    await ensurePosyanduVillageAccess(req.user, payload.posyanduId ?? current.posyanduId);
 
     const evaluation = evaluateGrowthStatus({
       toddler: current.toddler,
@@ -375,6 +406,12 @@ export const updateCheckup = async (req, res, next) => {
 export const deleteCheckup = async (req, res, next) => {
   try {
     const id = Number(req.params.id);
+    const checkup = await prisma.checkup.findUnique({
+      where: { id },
+      include: { toddler: { include: { family: { select: { villageId: true } } } } },
+    });
+    if (!checkup) throw new ApiError(404, 'Pemeriksaan tidak ditemukan');
+    ensureVillageAccess(req.user, checkup.toddler.family?.villageId, 'Anda hanya dapat menghapus pemeriksaan pada desa Anda');
     await prisma.checkup.delete({ where: { id } });
     res.json({ success: true, data: { message: 'Pemeriksaan dihapus' } });
   } catch (error) {

@@ -3,6 +3,7 @@ import { prisma } from '../../config/prisma.js';
 import { writeAuditLog } from '../../services/audit.service.js';
 import { ApiError } from '../../utils/api-error.js';
 import { buildMeta, buildPagination } from '../../utils/pagination.js';
+import { ensureVillageAccess, getActorVillageId } from '../../utils/village-scope.js';
 
 const familyInclude = {
   village: true,
@@ -162,10 +163,12 @@ const mapPrismaError = (error) => {
 
 export const listFamilies = async (req, res, next) => {
   try {
+    const actorVillageId = getActorVillageId(req.user);
     const { page, pageSize, skip, take } = buildPagination(req.query);
     const search = req.query.search?.trim();
     const where = search
       ? {
+          ...(actorVillageId === null ? {} : { villageId: actorVillageId }),
           OR: [
             { familyNumber: { contains: search } },
             { headName: { contains: search } },
@@ -173,7 +176,9 @@ export const listFamilies = async (req, res, next) => {
             { phone: { contains: search } },
           ],
         }
-      : {};
+      : actorVillageId === null
+        ? {}
+        : { villageId: actorVillageId };
 
     const [items, total] = await Promise.all([
       prisma.family.findMany({
@@ -194,12 +199,14 @@ export const listFamilies = async (req, res, next) => {
 
 export const createFamily = async (req, res, next) => {
   try {
+    const actorVillageId = getActorVillageId(req.user);
     const payload = req.validated.body;
+    ensureVillageAccess(req.user, payload.villageId, 'Anda hanya dapat menambah Master KK pada desa Anda');
     const members = normalizeFamilyMembers(payload.members);
     const created = await prisma.$transaction(async (tx) => {
       const family = await tx.family.create({
         data: {
-          villageId: payload.villageId,
+          villageId: actorVillageId ?? payload.villageId,
           hamletId: payload.hamletId,
           rwId: payload.rwId,
           rtId: payload.rtId,
@@ -253,17 +260,20 @@ export const createFamily = async (req, res, next) => {
 
 export const updateFamily = async (req, res, next) => {
   try {
+    const actorVillageId = getActorVillageId(req.user);
     const id = req.validated.params.id;
     const payload = req.validated.body;
     const members = normalizeFamilyMembers(payload.members);
     const exists = await prisma.family.findUnique({ where: { id } });
     if (!exists) throw new ApiError(404, 'Master KK tidak ditemukan');
+    ensureVillageAccess(req.user, exists.villageId, 'Anda hanya dapat mengubah Master KK pada desa Anda');
+    ensureVillageAccess(req.user, payload.villageId, 'Anda hanya dapat mengubah Master KK pada desa Anda');
 
     const updated = await prisma.$transaction(async (tx) => {
       await tx.family.update({
         where: { id },
         data: {
-          villageId: payload.villageId,
+          villageId: actorVillageId ?? payload.villageId,
           hamletId: payload.hamletId,
           rwId: payload.rwId,
           rtId: payload.rtId,
@@ -329,6 +339,7 @@ export const deleteFamily = async (req, res, next) => {
     });
 
     if (!family) throw new ApiError(404, 'Master KK tidak ditemukan');
+    ensureVillageAccess(req.user, family.villageId, 'Anda hanya dapat menghapus Master KK pada desa Anda');
     if (family._count.toddlers > 0) {
       throw new ApiError(409, 'KK tidak bisa dihapus karena masih dipakai data balita');
     }

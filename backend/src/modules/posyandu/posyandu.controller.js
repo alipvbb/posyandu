@@ -1,8 +1,11 @@
 import { prisma } from '../../config/prisma.js';
+import { getActorVillageId } from '../../utils/village-scope.js';
 
-export const listPosyandus = async (_req, res, next) => {
+export const listPosyandus = async (req, res, next) => {
   try {
+    const actorVillageId = getActorVillageId(req.user);
     const items = await prisma.posyandu.findMany({
+      where: actorVillageId === null ? undefined : { villageId: actorVillageId },
       include: {
         hamlet: true,
         _count: {
@@ -19,4 +22,3 @@ export const listPosyandus = async (_req, res, next) => {
     next(error);
   }
 };
-

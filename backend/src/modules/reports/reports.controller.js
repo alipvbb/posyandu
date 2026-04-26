@@ -2,6 +2,7 @@ import PDFDocument from 'pdfkit';
 import ExcelJS from 'exceljs';
 import { stringify } from 'csv-stringify/sync';
 import { prisma } from '../../config/prisma.js';
+import { getActorVillageId } from '../../utils/village-scope.js';
 
 const RISK_LABEL_MAP = {
   NORMAL: 'Normal',
@@ -155,8 +156,10 @@ const buildMonthlyBucketsInRange = (startDate, endDate) => {
 
 export const getToddlerReport = async (req, res, next) => {
   try {
+    const actorVillageId = getActorVillageId(req.user);
     const { startDate, endDate, startDateIso, endDateIso } = resolveDateRange(req.query);
     const toddlers = await prisma.toddler.findMany({
+      where: actorVillageId === null ? undefined : { family: { is: { villageId: actorVillageId } } },
       include: {
         hamlet: true,
         posyandu: true,
@@ -201,12 +204,14 @@ export const getToddlerReport = async (req, res, next) => {
 
 export const getCheckupReport = async (req, res, next) => {
   try {
+    const actorVillageId = getActorVillageId(req.user);
     const { startDate, endDate, startDateIso, endDateIso } = resolveDateRange(req.query);
     const where = {
       examDate: {
         gte: startDate,
         lte: endDate,
       },
+      ...(actorVillageId === null ? {} : { toddler: { family: { is: { villageId: actorVillageId } } } }),
     };
     const checkups = await prisma.checkup.findMany({
       where,
@@ -245,8 +250,10 @@ export const getCheckupReport = async (req, res, next) => {
 
 export const getRiskReport = async (req, res, next) => {
   try {
+    const actorVillageId = getActorVillageId(req.user);
     const { startDate, endDate, startDateIso, endDateIso } = resolveDateRange(req.query);
     const toddlers = await prisma.toddler.findMany({
+      where: actorVillageId === null ? undefined : { family: { is: { villageId: actorVillageId } } },
       include: {
         hamlet: true,
         posyandu: true,
@@ -291,6 +298,7 @@ export const getRiskReport = async (req, res, next) => {
 
 export const getReportInsights = async (req, res, next) => {
   try {
+    const actorVillageId = getActorVillageId(req.user);
     const { startDate, endDate, startDateIso, endDateIso } = resolveDateRange(req.query);
     const monthlyBuckets = buildMonthlyBucketsInRange(startDate, endDate);
     const monthMap = new Map(
@@ -312,6 +320,7 @@ export const getReportInsights = async (req, res, next) => {
 
     const [toddlers, recentCheckups] = await Promise.all([
       prisma.toddler.findMany({
+        where: actorVillageId === null ? undefined : { family: { is: { villageId: actorVillageId } } },
         include: {
           hamlet: true,
           posyandu: true,
@@ -333,6 +342,7 @@ export const getReportInsights = async (req, res, next) => {
             gte: startDate,
             lte: endDate,
           },
+          ...(actorVillageId === null ? {} : { toddler: { family: { is: { villageId: actorVillageId } } } }),
         },
         select: {
           examDate: true,

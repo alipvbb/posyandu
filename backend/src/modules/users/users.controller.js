@@ -3,6 +3,7 @@ import { prisma } from '../../config/prisma.js';
 import { writeAuditLog } from '../../services/audit.service.js';
 import { ApiError } from '../../utils/api-error.js';
 import { buildMeta, buildPagination } from '../../utils/pagination.js';
+import { getActorVillageId } from '../../utils/village-scope.js';
 
 const userInclude = {
   village: true,
@@ -43,18 +44,7 @@ const resolveRoles = async ({ roleIds, roleCodes }) => {
   return [];
 };
 
-const hasGlobalScope = (reqUser) => reqUser?.roles?.some((role) => role.code === 'super-admin');
-
-const resolveActorVillageId = (reqUser) => {
-  if (hasGlobalScope(reqUser)) return null;
-  if (!reqUser?.villageId) {
-    throw new ApiError(
-      403,
-      'Akun Anda belum terhubung ke desa. Hubungi administrator sistem untuk mengaitkan desa akun ini.',
-    );
-  }
-  return reqUser.villageId;
-};
+const resolveActorVillageId = (reqUser) => getActorVillageId(reqUser);
 
 const ensureSameVillageAccess = (reqUser, targetVillageId) => {
   const actorVillageId = resolveActorVillageId(reqUser);

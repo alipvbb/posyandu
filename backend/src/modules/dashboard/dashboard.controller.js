@@ -1,16 +1,19 @@
 import dayjs from 'dayjs';
 import { prisma } from '../../config/prisma.js';
+import { getActorVillageId } from '../../utils/village-scope.js';
 
 const lastMonths = (count) =>
   Array.from({ length: count }).map((_, index) => dayjs().subtract(count - index - 1, 'month'));
 
-export const getDashboardSummary = async (_req, res, next) => {
+export const getDashboardSummary = async (req, res, next) => {
   try {
+    const actorVillageId = getActorVillageId(req.user);
     const now = dayjs();
     const monthStart = now.startOf('month').toDate();
     const monthEnd = now.endOf('month').toDate();
     const [toddlers, monthlyCheckups, hamlets, users, roles] = await Promise.all([
       prisma.toddler.findMany({
+        where: actorVillageId === null ? undefined : { family: { is: { villageId: actorVillageId } } },
         include: {
           hamlet: true,
           posyandu: true,
@@ -25,6 +28,7 @@ export const getDashboardSummary = async (_req, res, next) => {
           examDate: {
             gte: dayjs().subtract(5, 'month').startOf('month').toDate(),
           },
+          ...(actorVillageId === null ? {} : { toddler: { family: { is: { villageId: actorVillageId } } } }),
         },
         select: {
           id: true,
@@ -33,8 +37,12 @@ export const getDashboardSummary = async (_req, res, next) => {
           toddlerId: true,
         },
       }),
-      prisma.hamlet.findMany(),
-      prisma.user.count(),
+      prisma.hamlet.findMany({
+        where: actorVillageId === null ? undefined : { villageId: actorVillageId },
+      }),
+      prisma.user.count({
+        where: actorVillageId === null ? undefined : { villageId: actorVillageId },
+      }),
       prisma.role.count(),
     ]);
 
@@ -145,7 +153,12 @@ export const getDashboardSummary = async (_req, res, next) => {
         },
         admin: {
           jumlahUser: users,
-          userAktif: await prisma.user.count({ where: { status: 'ACTIVE' } }),
+          userAktif: await prisma.user.count({
+            where: {
+              status: 'ACTIVE',
+              ...(actorVillageId === null ? {} : { villageId: actorVillageId }),
+            },
+          }),
           roleList: roles,
           statistikDataMaster: {
             dusun: hamlets.length,
@@ -160,9 +173,11 @@ export const getDashboardSummary = async (_req, res, next) => {
   }
 };
 
-export const getDashboardRisk = async (_req, res, next) => {
+export const getDashboardRisk = async (req, res, next) => {
   try {
+    const actorVillageId = getActorVillageId(req.user);
     const toddlers = await prisma.toddler.findMany({
+      where: actorVillageId === null ? undefined : { family: { is: { villageId: actorVillageId } } },
       include: {
         hamlet: true,
         posyandu: true,

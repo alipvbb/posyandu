@@ -1,4 +1,5 @@
 import { prisma } from '../../config/prisma.js';
+import { getActorVillageId } from '../../utils/village-scope.js';
 import { mapCheckup } from '../balita/balita.shared.js';
 
 const resolveToken = (value) => {
@@ -13,17 +14,20 @@ const resolveToken = (value) => {
 
 export const resolveScan = async (req, res, next) => {
   try {
+    const actorVillageId = getActorVillageId(req.user);
     const rawValue = req.body.value;
     const token = resolveToken(rawValue);
     const card = await prisma.toddlerCard.findFirst({
       where: {
         OR: [{ publicToken: token }, { qrCodeUrl: rawValue }],
+        ...(actorVillageId === null ? {} : { toddler: { family: { is: { villageId: actorVillageId } } } }),
       },
       include: {
         toddler: {
           include: {
             hamlet: true,
             posyandu: true,
+            family: true,
             checkups: {
               orderBy: { examDate: 'desc' },
               take: 5,
@@ -36,10 +40,14 @@ export const resolveScan = async (req, res, next) => {
     const toddler =
       card?.toddler ||
       (await prisma.toddler.findFirst({
-        where: { qrCodeValue: rawValue },
+        where: {
+          qrCodeValue: rawValue,
+          ...(actorVillageId === null ? {} : { family: { is: { villageId: actorVillageId } } }),
+        },
         include: {
           hamlet: true,
           posyandu: true,
+          family: true,
           checkups: {
             orderBy: { examDate: 'desc' },
             take: 5,

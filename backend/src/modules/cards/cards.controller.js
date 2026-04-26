@@ -2,6 +2,7 @@ import dayjs from 'dayjs';
 import { prisma } from '../../config/prisma.js';
 import { mapCheckup, mapToddler } from '../balita/balita.shared.js';
 import { buildPublicCardUrl } from '../../utils/request-url.js';
+import { ensureVillageAccess, getActorVillageId } from '../../utils/village-scope.js';
 
 const buildCardPayload = (card, req) => ({
   toddlerId: card.toddlerId,
@@ -13,6 +14,7 @@ const buildCardPayload = (card, req) => ({
 
 export const getCardByToddlerId = async (req, res, next) => {
   try {
+    const actorVillageId = getActorVillageId(req.user);
     const card = await prisma.toddlerCard.findFirst({
       where: { toddlerId: Number(req.params.id) },
       include: {
@@ -32,6 +34,12 @@ export const getCardByToddlerId = async (req, res, next) => {
       },
       orderBy: { createdAt: 'desc' },
     });
+    if (!card) {
+      return res.status(404).json({ success: false, message: 'Kartu tidak ditemukan' });
+    }
+    if (actorVillageId !== null) {
+      ensureVillageAccess(req.user, card.toddler.family?.villageId, 'Anda hanya dapat melihat kartu pada desa Anda');
+    }
 
     res.json({ success: true, data: buildCardPayload(card, req) });
   } catch (error) {

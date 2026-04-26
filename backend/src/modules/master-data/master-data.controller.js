@@ -1,5 +1,6 @@
 import { prisma } from '../../config/prisma.js';
 import { indonesiaRegionService } from '../../services/indonesia-region.service.js';
+import { getActorVillageId } from '../../utils/village-scope.js';
 
 const filterRegionItems = (items, query) => {
   const search = String(query?.q || '')
@@ -11,17 +12,39 @@ const filterRegionItems = (items, query) => {
   return filtered.slice(0, normalizedLimit);
 };
 
-export const getMasterData = async (_req, res, next) => {
+export const getMasterData = async (req, res, next) => {
   try {
-    const [villages, hamlets, rws, rts, posyandus, interventions, immunizations, families] = await Promise.all([
-      prisma.village.findMany({ orderBy: { name: 'asc' } }),
-      prisma.hamlet.findMany({ orderBy: { name: 'asc' } }),
-      prisma.rW.findMany({ orderBy: { name: 'asc' } }),
-      prisma.rT.findMany({ orderBy: { name: 'asc' } }),
-      prisma.posyandu.findMany({ orderBy: { name: 'asc' } }),
+    const actorVillageId = getActorVillageId(req.user);
+    const villages = await prisma.village.findMany({
+      where: actorVillageId === null ? undefined : { id: actorVillageId },
+      orderBy: { name: 'asc' },
+    });
+
+    const hamlets = await prisma.hamlet.findMany({
+      where: actorVillageId === null ? undefined : { villageId: actorVillageId },
+      orderBy: { name: 'asc' },
+    });
+    const hamletIds = hamlets.map((item) => item.id);
+
+    const rws = await prisma.rW.findMany({
+      where: actorVillageId === null ? undefined : { hamletId: { in: hamletIds.length ? hamletIds : [-1] } },
+      orderBy: { name: 'asc' },
+    });
+    const rwIds = rws.map((item) => item.id);
+
+    const [rts, posyandus, interventions, immunizations, families] = await Promise.all([
+      prisma.rT.findMany({
+        where: actorVillageId === null ? undefined : { rwId: { in: rwIds.length ? rwIds : [-1] } },
+        orderBy: { name: 'asc' },
+      }),
+      prisma.posyandu.findMany({
+        where: actorVillageId === null ? undefined : { villageId: actorVillageId },
+        orderBy: { name: 'asc' },
+      }),
       prisma.interventionType.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } }),
       prisma.immunization.findMany({ orderBy: { recommendedAtMonth: 'asc' } }),
       prisma.family.findMany({
+        where: actorVillageId === null ? undefined : { villageId: actorVillageId },
         orderBy: { createdAt: 'desc' },
         take: 200,
         include: {

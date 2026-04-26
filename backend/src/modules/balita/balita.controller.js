@@ -4,6 +4,7 @@ import { prisma } from '../../config/prisma.js';
 import { writeAuditLog } from '../../services/audit.service.js';
 import { ApiError } from '../../utils/api-error.js';
 import { buildMeta, buildPagination } from '../../utils/pagination.js';
+import { ensureVillageAccess, getActorVillageId } from '../../utils/village-scope.js';
 import { mapToddler, toddlerDetailInclude, toddlerListInclude } from './balita.shared.js';
 
 const createToddlerCardData = (qrCodeValue) => {
@@ -105,6 +106,17 @@ const resolveFamilyContext = async (tx, payload) => {
   return { family, fatherMember, motherMember };
 };
 
+const ensurePosyanduVillageAccess = async (tx, reqUser, posyanduId) => {
+  const actorVillageId = getActorVillageId(reqUser);
+  if (actorVillageId === null) return;
+  const posyandu = await tx.posyandu.findUnique({
+    where: { id: Number(posyanduId) },
+    select: { id: true, villageId: true },
+  });
+  if (!posyandu) throw new ApiError(400, 'Posyandu tidak ditemukan');
+  ensureVillageAccess(reqUser, posyandu.villageId, 'Anda hanya dapat memilih posyandu pada desa Anda');
+};
+
 const resolveSelectedChildMember = ({ family, familyMemberId, allowOptional }) => {
   const childCandidates = family.members.filter((item) => isChildRelation(item.relationType));
 
@@ -189,10 +201,12 @@ const buildToddlerData = ({ payload, existing, family, fatherMember, motherMembe
 
 export const listToddlers = async (req, res, next) => {
   try {
+    const actorVillageId = getActorVillageId(req.user);
     const { page, pageSize, skip, take } = buildPagination(req.query);
     const search = req.query.search?.trim();
     const riskFilter = req.query.riskLevel?.trim();
     const where = {
+      ...(actorVillageId === null ? {} : { family: { is: { villageId: actorVillageId } } }),
       ...(search
         ? {
             OR: [
@@ -233,6 +247,7 @@ export const listToddlers = async (req, res, next) => {
 
 export const getToddlerById = async (req, res, next) => {
   try {
+    const actorVillageId = getActorVillageId(req.user);
     const toddler = await prisma.toddler.findUnique({
       where: { id: Number(req.params.id) },
       include: toddlerDetailInclude,
@@ -240,6 +255,9 @@ export const getToddlerById = async (req, res, next) => {
 
     if (!toddler || !isToddlerAgeByBirthDate(toddler.birthDate)) {
       throw new ApiError(404, 'Balita tidak ditemukan');
+    }
+    if (actorVillageId !== null) {
+      ensureVillageAccess(req.user, toddler.family?.villageId, 'Anda hanya dapat melihat balita pada desa Anda');
     }
     res.json({ success: true, data: mapToddler(toddler) });
   } catch (error) {
@@ -254,6 +272,7 @@ export const createToddler = async (req, res, next) => {
     const cardData = createToddlerCardData(qrCodeValue);
     const toddler = await prisma.$transaction(async (tx) => {
       const { family, fatherMember, motherMember } = await resolveFamilyContext(tx, payload);
+      ensureVillageAccess(req.user, family.villageId, 'Anda hanya dapat menambah balita pada desa Anda');
       const selectedChildMember = resolveSelectedChildMember({
         family,
         familyMemberId: payload.familyMemberId,
@@ -271,6 +290,7 @@ export const createToddler = async (req, res, next) => {
       assertToddlerAgeInRange(toddlerData.birthDate);
 
       toddlerData.code = toddlerData.code || `BLT-${nanoid(8).toUpperCase()}`;
+      await ensurePosyanduVillageAccess(tx, req.user, toddlerData.posyanduId);
 
       await syncChildMemberFromToddler(tx, {
         selectedChildMember,
@@ -311,8 +331,10 @@ export const updateToddler = async (req, res, next) => {
     const payload = req.validated.body;
     const toddler = await prisma.toddler.findUnique({
       where: { id },
+      include: { family: { select: { villageId: true } } },
     });
     if (!toddler) throw new ApiError(404, 'Balita tidak ditemukan');
+    ensureVillageAccess(req.user, toddler.family?.villageId, 'Anda hanya dapat mengubah balita pada desa Anda');
 
     const updateInput = {
       code: toddler.code,
@@ -338,6 +360,7 @@ export const updateToddler = async (req, res, next) => {
 
     const updated = await prisma.$transaction(async (tx) => {
       const { family, fatherMember, motherMember } = await resolveFamilyContext(tx, updateInput);
+      ensureVillageAccess(req.user, family.villageId, 'Anda hanya dapat mengubah balita pada desa Anda');
       const selectedChildMember = resolveSelectedChildMember({
         family,
         familyMemberId: payload.familyMemberId || null,
@@ -353,6 +376,7 @@ export const updateToddler = async (req, res, next) => {
         selectedChildMember,
       });
       assertToddlerAgeInRange(toddlerData.birthDate);
+      await ensurePosyanduVillageAccess(tx, req.user, toddlerData.posyanduId);
 
       await syncChildMemberFromToddler(tx, {
         selectedChildMember,
@@ -385,8 +409,12 @@ export const updateToddler = async (req, res, next) => {
 export const deleteToddler = async (req, res, next) => {
   try {
     const id = Number(req.params.id);
-    const toddler = await prisma.toddler.findUnique({ where: { id } });
+    const toddler = await prisma.toddler.findUnique({
+      where: { id },
+      include: { family: { select: { villageId: true } } },
+    });
     if (!toddler) throw new ApiError(404, 'Balita tidak ditemukan');
+    ensureVillageAccess(req.user, toddler.family?.villageId, 'Anda hanya dapat menghapus balita pada desa Anda');
     await prisma.toddler.delete({ where: { id } });
 
     await writeAuditLog({
