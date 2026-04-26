@@ -97,6 +97,17 @@ const fillFromFamily = (family: any) => {
   form.hamletId = family.hamletId ? String(family.hamletId) : form.hamletId;
   form.rwId = family.rwId ? String(family.rwId) : form.rwId;
   form.rtId = family.rtId ? String(family.rtId) : form.rtId;
+  const firstPosyanduInHamlet = masterDataStore.posyandus.find(
+    (item: any) => String(item.hamletId) === String(family.hamletId),
+  );
+  const currentPosyanduStillValid = masterDataStore.posyandus.some(
+    (item: any) =>
+      String(item.id) === String(form.posyanduId) &&
+      String(item.hamletId) === String(family.hamletId),
+  );
+  if (!currentPosyanduStillValid) {
+    form.posyanduId = firstPosyanduInHamlet ? String(firstPosyanduInHamlet.id) : '';
+  }
   form.fatherName = fatherMember?.fullName || form.fatherName || family.headName || '';
   form.motherName = motherMember?.fullName || form.motherName;
 };
@@ -227,6 +238,14 @@ watch(
     if (next === prev) return;
     form.rwId = '';
     form.rtId = '';
+    const currentPosyanduStillValid = masterDataStore.posyandus.some(
+      (item: any) =>
+        String(item.id) === String(form.posyanduId) &&
+        String(item.hamletId) === String(next),
+    );
+    if (!currentPosyanduStillValid) {
+      form.posyanduId = '';
+    }
   },
 );
 
@@ -240,6 +259,11 @@ watch(
 
 const filteredRws = computed(() => masterDataStore.rws.filter((item) => String(item.hamletId) === form.hamletId));
 const filteredRts = computed(() => masterDataStore.rts.filter((item) => String(item.rwId) === form.rwId));
+const filteredPosyandus = computed(() =>
+  masterDataStore.posyandus.filter((item: any) =>
+    form.hamletId ? String(item.hamletId) === String(form.hamletId) : true,
+  ),
+);
 
 const familyOptions = computed(() =>
   masterDataStore.families.map((item: any) => ({
@@ -431,17 +455,20 @@ const submit = () => {
       <AppSelect
         v-model="form.rwId"
         label="RW"
+        :disabled="!form.hamletId"
         :options="filteredRws.map((item) => ({ label: item.name, value: item.id }))"
       />
       <AppSelect
         v-model="form.rtId"
         label="RT"
+        :disabled="!form.rwId"
         :options="filteredRts.map((item) => ({ label: item.name, value: item.id }))"
       />
       <AppSelect
         v-model="form.posyanduId"
         label="Posyandu"
-        :options="masterDataStore.posyandus.map((item) => ({ label: item.name, value: item.id }))"
+        :disabled="!form.hamletId"
+        :options="filteredPosyandus.map((item) => ({ label: item.name, value: item.id }))"
       />
       <AppInput v-model="form.parentPhone" label="No HP orang tua" />
       <AppInput v-model="form.photoUrl" label="URL foto (opsional)" />

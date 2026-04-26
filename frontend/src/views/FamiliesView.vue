@@ -772,7 +772,7 @@ onMounted(async () => {
 
 <style scoped>
 :deep(.dialog-panel) {
-  width: min(1240px, 96vw);
+  width: min(1280px, 96vw);
   padding: 16px 18px;
 }
 
@@ -784,11 +784,14 @@ onMounted(async () => {
   display: grid;
   gap: 10px;
   grid-template-columns: 1fr;
+  align-items: start;
 }
 
 .kk-meta-card {
   box-shadow: none;
   border: 1px solid #dce8e2;
+  min-width: 0;
+  align-self: start;
 }
 
 .kk-section-title {
@@ -799,7 +802,16 @@ onMounted(async () => {
 .kk-fields-grid {
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-width: 0;
+}
+
+.kk-fields-grid :deep(.form-field) {
+  min-width: 0;
+}
+
+.kk-fields-grid :deep(.form-input) {
+  min-width: 0;
 }
 
 .kk-members-card {
@@ -844,10 +856,16 @@ onMounted(async () => {
   display: grid;
   gap: 8px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-width: 0;
 }
 
 .kk-member-grid .form-field {
   margin: 0;
+  min-width: 0;
+}
+
+.kk-member-grid .form-input {
+  min-width: 0;
 }
 
 .kk-form-actions {
@@ -865,12 +883,6 @@ onMounted(async () => {
 
   .kk-member-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 1280px) {
-  .kk-meta-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -892,6 +904,10 @@ onMounted(async () => {
 @media (max-width: 480px) {
   :deep(.dialog-panel) {
     width: min(100%, 720px);
+  }
+
+  .kk-fields-grid {
+    grid-template-columns: 1fr;
   }
 
   .kk-member-grid {

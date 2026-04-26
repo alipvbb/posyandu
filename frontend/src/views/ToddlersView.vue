@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import AppBadge from '../components/ui/AppBadge.vue';
 import AppButton from '../components/ui/AppButton.vue';
 import AppCard from '../components/ui/AppCard.vue';
@@ -33,6 +33,11 @@ const filters = reactive({
 const canCreateToddler = computed(() => authStore.hasPermission('toddlers.create'));
 const canDeleteToddler = computed(() => authStore.hasPermission('toddlers.delete'));
 const canCreateCheckup = computed(() => authStore.hasPermission('checkups.create'));
+const filteredPosyandus = computed(() =>
+  masterDataStore.posyandus.filter((item: any) =>
+    filters.hamletId ? String(item.hamletId) === String(filters.hamletId) : true,
+  ),
+);
 
 const riskTone = (value?: string): BadgeTone =>
   ({
@@ -65,6 +70,21 @@ const applyFilters = async () => {
   filters.page = 1;
   await fetchData();
 };
+
+watch(
+  () => filters.hamletId,
+  (next) => {
+    if (!filters.posyanduId) return;
+    const stillValid = masterDataStore.posyandus.some(
+      (item: any) =>
+        String(item.id) === String(filters.posyanduId) &&
+        String(item.hamletId) === String(next),
+    );
+    if (!stillValid) {
+      filters.posyanduId = '';
+    }
+  },
+);
 
 const remove = async () => {
   if (!confirmDeleteId.value) return;
@@ -105,7 +125,8 @@ onMounted(async () => {
         <AppSelect
           v-model="filters.posyanduId"
           label="Posyandu"
-          :options="masterDataStore.posyandus.map((item) => ({ label: item.name, value: item.id }))"
+          :disabled="!filters.hamletId"
+          :options="filteredPosyandus.map((item) => ({ label: item.name, value: item.id }))"
         />
         <AppSelect
           v-model="filters.riskLevel"

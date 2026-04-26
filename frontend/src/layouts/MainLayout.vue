@@ -17,6 +17,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { APP_NAME, APP_TAGLINE } from '../app/branding';
 import { useAuthStore } from '../stores/auth';
 import { useAppStore } from '../stores/app';
+import { familiesService } from '../services/families.service';
 import { BOTTOM_NAV_CHANGED_EVENT, getHiddenBottomNavKeys } from '../utils/nav-access';
 
 const authStore = useAuthStore();
@@ -27,6 +28,7 @@ const isMobileMenuOpen = ref(false);
 const navVisibilityVersion = ref(0);
 const pageTransitionName = ref('page-fade');
 const lastHistoryPosition = ref(Number(window.history.state?.position ?? 0));
+const brandVillageName = ref<string | null>(null);
 
 const roleCode = computed(() => authStore.user?.roles?.[0]?.code || null);
 
@@ -58,6 +60,34 @@ const pageTitle = computed(() => {
   if (route.path === '/') return 'Dashboard';
   return match?.label || APP_NAME;
 });
+
+const fullTagline = computed(() => {
+  const villageName = brandVillageName.value || authStore.user?.village?.name || '-';
+  return `${APP_TAGLINE} Desa = ${villageName}`;
+});
+
+const resolveVillageFromFirstFamily = async () => {
+  if (!authStore.hasPermission('toddlers.create')) {
+    brandVillageName.value = authStore.user?.village?.name || null;
+    return;
+  }
+
+  try {
+    const result = await familiesService.list({
+      page: 1,
+      pageSize: 1,
+      order: 'oldest',
+    });
+    const firstFamily = result?.data?.[0];
+    brandVillageName.value =
+      firstFamily?.domicileVillageName ||
+      firstFamily?.village?.name ||
+      authStore.user?.village?.name ||
+      null;
+  } catch (_error) {
+    brandVillageName.value = authStore.user?.village?.name || null;
+  }
+};
 
 const handleLogout = async () => {
   isMobileMenuOpen.value = false;
@@ -93,6 +123,7 @@ const onBottomNavSettingChanged = () => {
 
 onMounted(() => {
   pageTransitionName.value = resolveTransitionName(false);
+  resolveVillageFromFirstFamily();
   window.addEventListener(BOTTOM_NAV_CHANGED_EVENT, onBottomNavSettingChanged);
 });
 
@@ -108,7 +139,7 @@ onBeforeUnmount(() => {
         <div class="brand-mark">PA</div>
         <div>
           <h1>{{ APP_NAME }}</h1>
-          <p>{{ APP_TAGLINE }}</p>
+          <p>{{ fullTagline }}</p>
         </div>
       </div>
 
