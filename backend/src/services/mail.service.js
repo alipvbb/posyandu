@@ -4,6 +4,7 @@ import { APP_NAME } from '../config/app-meta.js';
 import { env } from '../config/env.js';
 
 let transporter;
+const MAIL_TIMEOUT_MS = Number(process.env.MAIL_TIMEOUT_MS || 12000);
 
 const canUseSmtp = () => Boolean(env.smtpHost && env.smtpUser && env.smtpPass);
 const canUseSendmail = () => existsSync('/usr/sbin/sendmail');
@@ -16,6 +17,9 @@ const getTransporter = () => {
       host: env.smtpHost,
       port: env.smtpPort,
       secure: env.smtpSecure,
+      connectionTimeout: 8000,
+      greetingTimeout: 8000,
+      socketTimeout: 10000,
       auth: {
         user: env.smtpUser,
         pass: env.smtpPass,
@@ -34,6 +38,21 @@ const getTransporter = () => {
   }
 
   return transporter;
+};
+
+const sendMailWithTimeout = async (transport, payload) => {
+  let timeoutRef;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutRef = setTimeout(() => {
+      reject(new Error(`MAIL_TIMEOUT_${MAIL_TIMEOUT_MS}ms`));
+    }, MAIL_TIMEOUT_MS);
+  });
+
+  try {
+    return await Promise.race([transport.sendMail(payload), timeoutPromise]);
+  } finally {
+    if (timeoutRef) clearTimeout(timeoutRef);
+  }
 };
 
 export const sendRegisterVerificationEmail = async ({ to, name, code, villageName }) => {
@@ -56,7 +75,7 @@ export const sendRegisterVerificationEmail = async ({ to, name, code, villageNam
     return { sent: false, mocked: true };
   }
   try {
-    await transport.sendMail({
+    await sendMailWithTimeout(transport, {
       from: env.smtpFrom,
       to,
       subject,
@@ -91,7 +110,7 @@ export const sendPasswordResetEmail = async ({ to, name, code, villageName }) =>
     return { sent: false, mocked: true };
   }
   try {
-    await transport.sendMail({
+    await sendMailWithTimeout(transport, {
       from: env.smtpFrom,
       to,
       subject,

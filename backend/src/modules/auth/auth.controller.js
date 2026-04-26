@@ -554,6 +554,10 @@ export const forgotPassword = async (req, res, next) => {
       villageName: user.village?.name || 'Desa',
     });
 
+    if (!delivery.sent) {
+      throw new ApiError(503, 'Kode reset gagal dikirim ke email. Periksa konfigurasi SMTP admin.');
+    }
+
     await writeAuditLog({
       userId: user.id,
       action: 'FORGOT_PASSWORD',
@@ -570,7 +574,7 @@ export const forgotPassword = async (req, res, next) => {
         message: 'Jika email terdaftar, kode reset password akan dikirim.',
         expiresInMinutes: RESET_CODE_TTL_MINUTES,
         cooldownSeconds: RESET_RESEND_COOLDOWN_SECONDS,
-        delivery: delivery.sent ? 'email' : 'mock',
+        delivery: 'email',
         ...(delivery.mocked && env.nodeEnv !== 'production' ? { debugCode: resetCode } : {}),
       },
     });
