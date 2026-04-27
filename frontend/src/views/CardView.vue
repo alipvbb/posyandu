@@ -8,7 +8,7 @@ import QrCodeCardPreview from '../components/qr/QrCodeCardPreview.vue';
 import { APP_NAME, APP_SHORT_NAME } from '../app/branding';
 import { toddlersService } from '../services/toddlers.service';
 import { useAppStore } from '../stores/app';
-import { formatDate, genderLabel } from '../utils/format';
+import { formatAgeFromBirthDate, formatDate, genderLabel } from '../utils/format';
 
 const route = useRoute();
 const appStore = useAppStore();
@@ -30,6 +30,7 @@ const printPage = () => {
 
   const toddler = card.value.toddler;
   const ttl = formatDate(toddler.tanggal_lahir);
+  const umur = formatAgeFromBirthDate(toddler.tanggal_lahir);
   const gender = genderLabel(toddler.jenis_kelamin);
   const issuedAt = formatDate(card.value.updatedAt || card.value.createdAt || new Date().toISOString());
 
@@ -259,6 +260,7 @@ const printPage = () => {
             <div class="meta-box">
               <div class="meta-grid">
                 <div class="meta-row"><span>TTL</span><b>${esc(ttl)}</b></div>
+                <div class="meta-row"><span>Umur</span><b>${esc(umur)}</b></div>
                 <div class="meta-row"><span>Jenis Kelamin</span><b>${esc(gender)}</b></div>
                 <div class="meta-row"><span>Nama Ibu</span><b>${esc(toddler.nama_ibu)}</b></div>
                 <div class="meta-row"><span>Nama Ayah</span><b>${esc(toddler.nama_ayah || '-')}</b></div>
@@ -364,6 +366,7 @@ onMounted(async () => {
             <p class="muted-text" style="margin: 0">{{ card.toddler.kode_balita }}</p>
             <div class="idcard-preview-meta">
               <div>TTL: <strong>{{ formatDate(card.toddler.tanggal_lahir) }}</strong></div>
+              <div>Umur: <strong>{{ formatAgeFromBirthDate(card.toddler.tanggal_lahir) }}</strong></div>
               <div>JK: <strong>{{ genderLabel(card.toddler.jenis_kelamin) }}</strong></div>
               <div>Ibu: <strong>{{ card.toddler.nama_ibu }}</strong></div>
               <div>Ayah: <strong>{{ card.toddler.nama_ayah || '-' }}</strong></div>

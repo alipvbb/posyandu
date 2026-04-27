@@ -2,6 +2,34 @@ import { prisma } from '../../config/prisma.js';
 import { indonesiaRegionService } from '../../services/indonesia-region.service.js';
 import { getActorVillageId } from '../../utils/village-scope.js';
 
+const DEFAULT_INTERVENTIONS = [
+  { code: 'vitamin-a', name: 'Vitamin A', description: 'Pemberian kapsul vitamin A' },
+  { code: 'pmt', name: 'Pemberian Makanan Tambahan', description: 'Intervensi PMT sesuai kebutuhan' },
+  { code: 'konseling-gizi', name: 'Konseling Gizi', description: 'Edukasi gizi untuk orang tua' },
+  { code: 'rujukan-puskesmas', name: 'Rujukan Puskesmas', description: 'Rujukan tindak lanjut ke puskesmas' },
+  { code: 'kunjungan-rumah', name: 'Kunjungan Rumah', description: 'Kunjungan rumah oleh petugas/kader' },
+];
+
+const DEFAULT_IMMUNIZATIONS = [
+  { code: 'hb0', name: 'HB0', recommendedAtMonth: 0, description: 'Imunisasi Hepatitis B dosis lahir' },
+  { code: 'bcg', name: 'BCG', recommendedAtMonth: 1, description: 'Imunisasi BCG' },
+  { code: 'polio', name: 'Polio', recommendedAtMonth: 2, description: 'Imunisasi Polio' },
+  { code: 'dpt-hb-hib', name: 'DPT-HB-Hib', recommendedAtMonth: 3, description: 'Imunisasi kombinasi DPT-HB-Hib' },
+  { code: 'campak', name: 'Campak', recommendedAtMonth: 9, description: 'Imunisasi Campak' },
+  { code: 'mr', name: 'MR', recommendedAtMonth: 18, description: 'Imunisasi MR lanjutan' },
+];
+
+const ensureDefaultReferenceData = async () => {
+  await prisma.interventionType.createMany({
+    data: DEFAULT_INTERVENTIONS.map((item) => ({ ...item, isActive: true })),
+    skipDuplicates: true,
+  });
+  await prisma.immunization.createMany({
+    data: DEFAULT_IMMUNIZATIONS,
+    skipDuplicates: true,
+  });
+};
+
 const filterRegionItems = (items, query) => {
   const search = String(query?.q || '')
     .trim()
@@ -14,6 +42,7 @@ const filterRegionItems = (items, query) => {
 
 export const getMasterData = async (req, res, next) => {
   try {
+    await ensureDefaultReferenceData();
     const actorVillageId = getActorVillageId(req.user);
     const villages = await prisma.village.findMany({
       where: actorVillageId === null ? undefined : { id: actorVillageId },

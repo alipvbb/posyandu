@@ -10,7 +10,7 @@ import GrowthActualMedianChart from '../components/charts/GrowthActualMedianChar
 import GrowthLineChart from '../components/charts/GrowthLineChart.vue';
 import { toddlersService } from '../services/toddlers.service';
 import { useAppStore } from '../stores/app';
-import { formatDate, formatNumber, genderLabel, riskLabel } from '../utils/format';
+import { formatAgeFromBirthDate, formatDate, formatNumber, genderLabel, riskLabel } from '../utils/format';
 
 const route = useRoute();
 const appStore = useAppStore();
@@ -86,6 +86,7 @@ watch(years, load);
           <div class="form-grid" style="margin-top: 10px">
             <div>Jenis kelamin: <strong>{{ genderLabel(data.toddler.gender) }}</strong></div>
             <div>Tanggal lahir: <strong>{{ formatDate(data.toddler.birthDate) }}</strong></div>
+            <div>Umur: <strong>{{ formatAgeFromBirthDate(data.toddler.birthDate) }}</strong></div>
             <div>Orang tua: <strong>{{ data.toddler.motherName }}</strong></div>
           </div>
         </div>

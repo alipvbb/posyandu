@@ -22,3 +22,23 @@ export const riskLabel = (value?: string) =>
     UNDERNUTRITION: 'Gizi kurang',
     OVERWEIGHT: 'Kelebihan berat badan',
   })[value || ''] || '-';
+
+export const formatAgeFromBirthDate = (value?: string | Date | null, referenceDate: Date = new Date()) => {
+  if (!value) return '-';
+  const birthDate = new Date(value);
+  if (Number.isNaN(birthDate.getTime())) return '-';
+
+  let totalMonths =
+    (referenceDate.getFullYear() - birthDate.getFullYear()) * 12 +
+    (referenceDate.getMonth() - birthDate.getMonth());
+
+  if (referenceDate.getDate() < birthDate.getDate()) totalMonths -= 1;
+  if (totalMonths < 0) totalMonths = 0;
+
+  const years = Math.floor(totalMonths / 12);
+  const months = totalMonths % 12;
+
+  if (years === 0) return `${months} bulan`;
+  if (months === 0) return `${years} tahun`;
+  return `${years} tahun ${months} bulan`;
+};

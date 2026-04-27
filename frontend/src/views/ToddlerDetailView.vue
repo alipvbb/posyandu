@@ -10,7 +10,7 @@ import GrowthLineChart from '../components/charts/GrowthLineChart.vue';
 import { toddlersService } from '../services/toddlers.service';
 import { useAppStore } from '../stores/app';
 import { useAuthStore } from '../stores/auth';
-import { formatDate, formatNumber, genderLabel, riskLabel } from '../utils/format';
+import { formatAgeFromBirthDate, formatDate, formatNumber, genderLabel, riskLabel } from '../utils/format';
 
 const route = useRoute();
 const appStore = useAppStore();
@@ -77,6 +77,7 @@ onMounted(async () => {
         <div class="form-grid" style="margin-top: 14px">
           <div>Jenis kelamin: <strong>{{ genderLabel(toddler.jenis_kelamin) }}</strong></div>
           <div>Tanggal lahir: <strong>{{ formatDate(toddler.tanggal_lahir) }}</strong></div>
+          <div>Umur: <strong>{{ formatAgeFromBirthDate(toddler.tanggal_lahir) }}</strong></div>
           <div>Ibu: <strong>{{ toddler.nama_ibu }}</strong></div>
           <div>Ayah: <strong>{{ toddler.nama_ayah }}</strong></div>
           <div>No HP: <strong>{{ toddler.no_hp_orangtua || '-' }}</strong></div>

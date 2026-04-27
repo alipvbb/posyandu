@@ -110,16 +110,22 @@ onMounted(async () => {
 
     <label class="form-field">
       <span>Jenis intervensi</span>
-      <select v-model="form.interventionTypeIds" class="form-input" multiple size="4">
+      <select v-model="form.interventionTypeIds" class="form-input" multiple size="4" :disabled="!masterDataStore.interventions.length">
         <option v-for="item in masterDataStore.interventions" :key="item.id" :value="item.id">{{ item.name }}</option>
       </select>
+      <small v-if="!masterDataStore.interventions.length" class="muted-text">
+        Data jenis intervensi masih kosong. Sistem akan otomatis mengisi data default saat master data dimuat ulang.
+      </small>
     </label>
 
     <label class="form-field">
       <span>Imunisasi</span>
-      <select v-model="form.immunizationIds" class="form-input" multiple size="4">
+      <select v-model="form.immunizationIds" class="form-input" multiple size="4" :disabled="!masterDataStore.immunizations.length">
         <option v-for="item in masterDataStore.immunizations" :key="item.id" :value="item.id">{{ item.name }}</option>
       </select>
+      <small v-if="!masterDataStore.immunizations.length" class="muted-text">
+        Data imunisasi masih kosong. Sistem akan otomatis mengisi data default saat master data dimuat ulang.
+      </small>
     </label>
 
     <label class="form-field">
