@@ -28,10 +28,10 @@ export const authenticate = async (req, _res, next) => {
             },
           },
         },
-      },
-      userPermissions: {
-        include: {
-          permission: true,
+        userPermissions: {
+          include: {
+            permission: true,
+          },
         },
       },
     });

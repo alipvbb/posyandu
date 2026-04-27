@@ -30,6 +30,7 @@
     </noscript>
     <div id="app">
       <div
+        id="boot-fallback"
         style="
           margin: 16px;
           padding: 12px 14px;
@@ -42,6 +43,61 @@
         Memuat aplikasi POSYANDU APP...
       </div>
     </div>
+    <script>
+      (function () {
+        const fallbackEl = document.getElementById('boot-fallback');
+        if (!fallbackEl) return;
+
+        const showError = (message) => {
+          fallbackEl.style.background = '#fff5dc';
+          fallbackEl.style.color = '#7f5f1c';
+          fallbackEl.style.border = '1px solid #f2d7a1';
+          fallbackEl.innerHTML =
+            '<strong>Aplikasi belum berhasil dimuat.</strong><br />' +
+            message +
+            '<br /><br /><button onclick="location.reload()" style="border:none;border-radius:8px;padding:8px 12px;background:#2f6f61;color:#fff;cursor:pointer">Reload</button>';
+        };
+
+        if (window.location.protocol === 'file:') {
+          fallbackEl.style.background = '#fff5dc';
+          fallbackEl.style.color = '#7f5f1c';
+          fallbackEl.style.border = '1px solid #f2d7a1';
+          fallbackEl.innerHTML =
+            '<strong>Aplikasi tidak bisa dibuka dari file langsung.</strong><br />' +
+            'Gunakan server lokal POSYANDU di <a href="http://localhost:8788/login" style="color:#2f6f61;font-weight:700">http://localhost:8788/login</a> ' +
+            'atau <a href="http://127.0.0.1:8788/login" style="color:#2f6f61;font-weight:700">http://127.0.0.1:8788/login</a>.';
+          return;
+        }
+
+        window.addEventListener('error', function (event) {
+          const target = event && event.target;
+          if (target && target.tagName === 'SCRIPT') {
+            showError('File JavaScript gagal dimuat. Coba hard refresh atau hapus cache browser.');
+            return;
+          }
+
+          if (event && event.message) {
+            showError('Terjadi error JavaScript: ' + event.message);
+          }
+        });
+
+        window.addEventListener('unhandledrejection', function (event) {
+          const reason = event && event.reason;
+          const message =
+            (reason && (reason.message || reason.toString && reason.toString())) ||
+            'Promise rejection tanpa detail.';
+          showError('Terjadi error runtime: ' + message);
+        });
+
+        window.setTimeout(function () {
+          const root = document.getElementById('app');
+          if (!root) return;
+          if (root.contains(fallbackEl)) {
+            showError('Loading terlalu lama. Periksa koneksi atau coba mode incognito tanpa extension.');
+          }
+        }, 9000);
+      })();
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
-  </html>
+</html>

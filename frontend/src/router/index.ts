@@ -149,7 +149,7 @@ router.beforeEach(async (to) => {
     await authStore.loadProfile();
   }
 
-  if (to.meta.guestOnly && authStore.isAuthenticated) {
+  if (to.meta.guestOnly && authStore.isAuthenticated && authStore.user) {
     return { name: 'dashboard' };
   }
 

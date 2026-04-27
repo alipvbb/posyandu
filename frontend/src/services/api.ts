@@ -23,6 +23,8 @@ export const tokenStorage = {
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
+  // Prevent endless loading state when API is unreachable.
+  timeout: 15000,
 });
 
 type RequestConfigWithMeta = InternalAxiosRequestConfig & {
