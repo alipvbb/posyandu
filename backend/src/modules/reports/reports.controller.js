@@ -20,6 +20,28 @@ const RISK_PRIORITY = {
 
 const normalizeRiskLevel = (riskLevel) => (riskLevel === 'ATTENTION' ? 'NORMAL' : riskLevel || 'NORMAL');
 
+const parseRegionFilters = (query) => {
+  const hamletId = Number(query?.hamletId || 0);
+  const rwId = Number(query?.rwId || 0);
+  const rtId = Number(query?.rtId || 0);
+  return {
+    hamletId: Number.isFinite(hamletId) && hamletId > 0 ? hamletId : null,
+    rwId: Number.isFinite(rwId) && rwId > 0 ? rwId : null,
+    rtId: Number.isFinite(rtId) && rtId > 0 ? rtId : null,
+  };
+};
+
+const buildToddlerWhereByScope = (actorVillageId, regionFilters) => {
+  const where = {};
+  if (actorVillageId !== null) {
+    where.family = { is: { villageId: actorVillageId } };
+  }
+  if (regionFilters.hamletId) where.hamletId = regionFilters.hamletId;
+  if (regionFilters.rwId) where.rwId = regionFilters.rwId;
+  if (regionFilters.rtId) where.rtId = regionFilters.rtId;
+  return where;
+};
+
 const sendCsv = (res, filename, rows) => {
   const csv = stringify(rows, { header: true });
   res.setHeader('Content-Type', 'text/csv');
@@ -157,11 +179,15 @@ const buildMonthlyBucketsInRange = (startDate, endDate) => {
 export const getToddlerReport = async (req, res, next) => {
   try {
     const actorVillageId = getActorVillageId(req.user);
+    const regionFilters = parseRegionFilters(req.query);
+    const toddlerWhere = buildToddlerWhereByScope(actorVillageId, regionFilters);
     const { startDate, endDate, startDateIso, endDateIso } = resolveDateRange(req.query);
     const toddlers = await prisma.toddler.findMany({
-      where: actorVillageId === null ? undefined : { family: { is: { villageId: actorVillageId } } },
+      where: toddlerWhere,
       include: {
         hamlet: true,
+        rw: true,
+        rt: true,
         posyandu: true,
         checkups: {
           where: {
@@ -181,6 +207,8 @@ export const getToddlerReport = async (req, res, next) => {
       nama_lengkap: item.fullName,
       jenis_kelamin: item.gender,
       dusun: item.hamlet.name,
+      rw: item.rw?.name || '-',
+      rt: item.rt?.name || '-',
       posyandu: item.posyandu.name,
       status: item.status,
       tanggal_pemeriksaan_terakhir: item.checkups[0]?.examDate.toISOString().slice(0, 10) || '-',
@@ -205,18 +233,26 @@ export const getToddlerReport = async (req, res, next) => {
 export const getCheckupReport = async (req, res, next) => {
   try {
     const actorVillageId = getActorVillageId(req.user);
+    const regionFilters = parseRegionFilters(req.query);
+    const toddlerWhere = buildToddlerWhereByScope(actorVillageId, regionFilters);
     const { startDate, endDate, startDateIso, endDateIso } = resolveDateRange(req.query);
     const where = {
       examDate: {
         gte: startDate,
         lte: endDate,
       },
-      ...(actorVillageId === null ? {} : { toddler: { family: { is: { villageId: actorVillageId } } } }),
+      ...(Object.keys(toddlerWhere).length ? { toddler: toddlerWhere } : {}),
     };
     const checkups = await prisma.checkup.findMany({
       where,
       include: {
-        toddler: true,
+        toddler: {
+          include: {
+            hamlet: true,
+            rw: true,
+            rt: true,
+          },
+        },
         posyandu: true,
       },
       orderBy: { examDate: 'desc' },
@@ -226,6 +262,9 @@ export const getCheckupReport = async (req, res, next) => {
       tanggal: item.examDate.toISOString().slice(0, 10),
       kode_balita: item.toddler.code,
       nama_balita: item.toddler.fullName,
+      dusun: item.toddler.hamlet?.name || '-',
+      rw: item.toddler.rw?.name || '-',
+      rt: item.toddler.rt?.name || '-',
       posyandu: item.posyandu.name,
       bb: Number(item.weight),
       tb: Number(item.height),
@@ -251,11 +290,15 @@ export const getCheckupReport = async (req, res, next) => {
 export const getRiskReport = async (req, res, next) => {
   try {
     const actorVillageId = getActorVillageId(req.user);
+    const regionFilters = parseRegionFilters(req.query);
+    const toddlerWhere = buildToddlerWhereByScope(actorVillageId, regionFilters);
     const { startDate, endDate, startDateIso, endDateIso } = resolveDateRange(req.query);
     const toddlers = await prisma.toddler.findMany({
-      where: actorVillageId === null ? undefined : { family: { is: { villageId: actorVillageId } } },
+      where: toddlerWhere,
       include: {
         hamlet: true,
+        rw: true,
+        rt: true,
         posyandu: true,
         checkups: {
           where: {
@@ -279,6 +322,8 @@ export const getRiskReport = async (req, res, next) => {
         kode_balita: item.code,
         nama_balita: item.fullName,
         dusun: item.hamlet.name,
+        rw: item.rw?.name || '-',
+        rt: item.rt?.name || '-',
         posyandu: item.posyandu.name,
         risiko: normalizeRiskLevel(item.checkups[0]?.riskLevel),
         status: item.checkups[0]?.statusLabel,
@@ -302,6 +347,8 @@ export const getRiskReport = async (req, res, next) => {
 export const getReportInsights = async (req, res, next) => {
   try {
     const actorVillageId = getActorVillageId(req.user);
+    const regionFilters = parseRegionFilters(req.query);
+    const toddlerWhere = buildToddlerWhereByScope(actorVillageId, regionFilters);
     const { startDate, endDate, startDateIso, endDateIso } = resolveDateRange(req.query);
     const monthlyBuckets = buildMonthlyBucketsInRange(startDate, endDate);
     const monthMap = new Map(
@@ -322,9 +369,11 @@ export const getReportInsights = async (req, res, next) => {
 
     const [toddlers, recentCheckups] = await Promise.all([
       prisma.toddler.findMany({
-        where: actorVillageId === null ? undefined : { family: { is: { villageId: actorVillageId } } },
+        where: toddlerWhere,
         include: {
           hamlet: true,
+          rw: true,
+          rt: true,
           posyandu: true,
           checkups: {
             where: {
@@ -344,7 +393,7 @@ export const getReportInsights = async (req, res, next) => {
             gte: startDate,
             lte: endDate,
           },
-          ...(actorVillageId === null ? {} : { toddler: { family: { is: { villageId: actorVillageId } } } }),
+          ...(Object.keys(toddlerWhere).length ? { toddler: toddlerWhere } : {}),
         },
         select: {
           examDate: true,

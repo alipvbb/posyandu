@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import AppBadge from '../components/ui/AppBadge.vue';
 import AppButton from '../components/ui/AppButton.vue';
 import AppCard from '../components/ui/AppCard.vue';
 import AppInput from '../components/ui/AppInput.vue';
 import AppLoadingBlock from '../components/ui/AppLoadingBlock.vue';
+import AppSelect from '../components/ui/AppSelect.vue';
 import DashboardBarChart from '../components/charts/DashboardBarChart.vue';
 import ReportLineChart from '../components/charts/ReportLineChart.vue';
 import ReportPieChart from '../components/charts/ReportPieChart.vue';
@@ -13,9 +14,11 @@ import SummaryCard from '../components/SummaryCard.vue';
 import { api } from '../services/api';
 import { reportsService } from '../services/reports.service';
 import { useAppStore } from '../stores/app';
+import { useMasterDataStore } from '../stores/master-data';
 import { formatDate, riskLabel } from '../utils/format';
 
 const appStore = useAppStore();
+const masterDataStore = useMasterDataStore();
 const rows = ref<any[]>([]);
 const insights = ref<any>(null);
 const loading = ref(true);
@@ -38,11 +41,52 @@ defaultStartDate.setDate(1);
 const period = reactive({
   startDate: toIsoDate(defaultStartDate),
   endDate: toIsoDate(defaultEndDate),
+  hamletId: '',
+  rwId: '',
+  rtId: '',
 });
+
+const rwOptions = computed(() =>
+  masterDataStore.rws
+    .filter((item: any) => (period.hamletId ? String(item.hamletId) === String(period.hamletId) : true))
+    .map((item: any) => ({ label: item.name, value: item.id })),
+);
+
+const rtOptions = computed(() =>
+  masterDataStore.rts
+    .filter((item: any) => (period.rwId ? String(item.rwId) === String(period.rwId) : true))
+    .map((item: any) => ({ label: item.name, value: item.id })),
+);
+
+watch(
+  () => period.hamletId,
+  () => {
+    if (period.rwId) {
+      const hasRw = rwOptions.value.some((item) => String(item.value) === String(period.rwId));
+      if (!hasRw) period.rwId = '';
+    }
+    if (period.rtId) {
+      const hasRt = rtOptions.value.some((item) => String(item.value) === String(period.rtId));
+      if (!hasRt) period.rtId = '';
+    }
+  },
+);
+
+watch(
+  () => period.rwId,
+  () => {
+    if (!period.rtId) return;
+    const hasRt = rtOptions.value.some((item) => String(item.value) === String(period.rtId));
+    if (!hasRt) period.rtId = '';
+  },
+);
 
 const periodParams = computed(() => ({
   startDate: period.startDate,
   endDate: period.endDate,
+  ...(period.hamletId ? { hamletId: period.hamletId } : {}),
+  ...(period.rwId ? { rwId: period.rwId } : {}),
+  ...(period.rtId ? { rtId: period.rtId } : {}),
 }));
 
 const periodLabel = computed(() => {
@@ -142,10 +186,21 @@ const priorityRowsPaged = computed(() => {
 });
 
 const applyPeriod = async () => {
+  if (period.rwId) {
+    const hasRw = rwOptions.value.some((item) => String(item.value) === String(period.rwId));
+    if (!hasRw) period.rwId = '';
+  }
+  if (period.rtId) {
+    const hasRt = rtOptions.value.some((item) => String(item.value) === String(period.rtId));
+    if (!hasRt) period.rtId = '';
+  }
   await load();
 };
 
-onMounted(load);
+onMounted(async () => {
+  await masterDataStore.fetchAll();
+  await load();
+});
 </script>
 
 <template>
@@ -161,6 +216,23 @@ onMounted(load);
       <div class="toolbar-row filters-grid">
         <AppInput v-model="period.startDate" type="date" label="Tanggal mulai" />
         <AppInput v-model="period.endDate" type="date" label="Tanggal akhir" />
+        <AppSelect
+          v-model="period.hamletId"
+          label="Dusun"
+          :options="masterDataStore.hamlets.map((item) => ({ label: item.name, value: item.id }))"
+        />
+        <AppSelect
+          v-model="period.rwId"
+          label="RW"
+          :options="rwOptions"
+          :disabled="Boolean(period.hamletId) && !rwOptions.length"
+        />
+        <AppSelect
+          v-model="period.rtId"
+          label="RT"
+          :options="rtOptions"
+          :disabled="Boolean(period.rwId) && !rtOptions.length"
+        />
         <AppButton @click="applyPeriod">Terapkan periode</AppButton>
       </div>
       <small class="muted-text">Periode aktif: {{ periodLabel }} (default 12 bulan terakhir).</small>
@@ -330,6 +402,8 @@ onMounted(load);
           { key: 'kode_balita', label: 'Kode' },
           { key: 'nama_lengkap', label: 'Nama' },
           { key: 'dusun', label: 'Dusun' },
+          { key: 'rw', label: 'RW' },
+          { key: 'rt', label: 'RT' },
           { key: 'posyandu', label: 'Posyandu' },
           { key: 'risiko_terakhir', label: 'Risiko' },
         ]"

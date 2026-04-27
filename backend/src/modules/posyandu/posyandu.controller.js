@@ -291,6 +291,7 @@ export const listRts = async (req, res, next) => {
 
 export const createRt = async (req, res, next) => {
   try {
+    const name = String(req.validated.body.name || '').trim();
     const rw = await prisma.rW.findUnique({
       where: { id: req.validated.body.rwId },
       include: { hamlet: true },
@@ -298,11 +299,20 @@ export const createRt = async (req, res, next) => {
     if (!rw) throw new ApiError(404, 'RW tidak ditemukan');
     ensureVillageAccess(req.user, rw.hamlet.villageId, 'Anda hanya dapat memilih RW desa Anda');
 
-    const code = await createUniqueCode(prisma.rT, `${rw.code}-RT-${req.validated.body.name}`);
+    const duplicate = await prisma.rT.findFirst({
+      where: {
+        rwId: rw.id,
+        name,
+      },
+      select: { id: true },
+    });
+    if (duplicate) throw new ApiError(409, 'Nama RT sudah ada pada RW ini');
+
+    const code = await createUniqueCode(prisma.rT, `${rw.code}-RT-${name}`);
     const item = await prisma.rT.create({
       data: {
         rwId: rw.id,
-        name: req.validated.body.name,
+        name,
         code,
       },
       include: { rw: { include: { hamlet: true } } },
@@ -335,11 +345,22 @@ export const updateRt = async (req, res, next) => {
       nextRwId = rw.id;
     }
 
+    const nextName = String(req.validated.body.name || existing.name).trim();
+    const duplicate = await prisma.rT.findFirst({
+      where: {
+        id: { not: id },
+        rwId: nextRwId,
+        name: nextName,
+      },
+      select: { id: true },
+    });
+    if (duplicate) throw new ApiError(409, 'Nama RT sudah ada pada RW ini');
+
     const updated = await prisma.rT.update({
       where: { id },
       data: {
         rwId: nextRwId,
-        ...(req.validated.body.name ? { name: req.validated.body.name } : {}),
+        ...(req.validated.body.name ? { name: nextName } : {}),
       },
       include: { rw: { include: { hamlet: true } } },
     });
@@ -497,4 +518,3 @@ export const deletePosyandu = async (req, res, next) => {
     next(mapPrismaError(error));
   }
 };
-
