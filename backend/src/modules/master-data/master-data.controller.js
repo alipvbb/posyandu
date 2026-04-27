@@ -77,7 +77,6 @@ export const getMasterData = async (req, res, next) => {
         immunizations,
         growthStatuses: [
           { code: 'NORMAL', name: 'Normal' },
-          { code: 'ATTENTION', name: 'Perlu perhatian' },
           { code: 'STUNTING_RISK', name: 'Risiko stunting' },
           { code: 'UNDERNUTRITION', name: 'Gizi kurang' },
           { code: 'OVERWEIGHT', name: 'Kelebihan berat badan' },

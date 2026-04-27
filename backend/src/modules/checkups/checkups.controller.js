@@ -6,6 +6,13 @@ import { ApiError } from '../../utils/api-error.js';
 import { ensureVillageAccess, getActorVillageId } from '../../utils/village-scope.js';
 import { mapCheckup } from '../balita/balita.shared.js';
 
+const normalizeRiskLevel = (riskLevel) => (riskLevel === 'ATTENTION' ? 'NORMAL' : riskLevel || 'NORMAL');
+const normalizeStatusLabel = (statusLabel, riskLevel) => {
+  if (!statusLabel) return statusLabel;
+  if (riskLevel !== 'ATTENTION') return statusLabel;
+  return String(statusLabel).replace(/perlu perhatian/gi, 'normal dengan indikator risiko awal KIA');
+};
+
 const createGrowthLog = (result, toddlerId, checkupId, previousCheckupId = null) => ({
   toddlerId,
   checkupId,
@@ -149,24 +156,23 @@ export const getMonthlyCheckupOverview = async (req, res, next) => {
       parentPhone: item.toddler.parentPhone || null,
       examDate: item.examDate,
       officerName: item.officerName,
-      riskLevel: item.riskLevel,
-      statusLabel: item.statusLabel,
+      riskLevel: normalizeRiskLevel(item.riskLevel),
+      statusLabel: normalizeStatusLabel(item.statusLabel, item.riskLevel),
     }));
 
     const riskPriority = {
       STUNTING_RISK: 1,
       UNDERNUTRITION: 2,
-      ATTENTION: 3,
-      OVERWEIGHT: 4,
-      NORMAL: 5,
+      OVERWEIGHT: 3,
+      NORMAL: 4,
       UNKNOWN: 6,
     };
 
     const absentToddlers = activeToddlers
       .filter((item) => !checkedIds.has(item.id))
       .sort((a, b) => {
-        const riskA = riskPriority[a.checkups[0]?.riskLevel || 'UNKNOWN'] || riskPriority.UNKNOWN;
-        const riskB = riskPriority[b.checkups[0]?.riskLevel || 'UNKNOWN'] || riskPriority.UNKNOWN;
+        const riskA = riskPriority[normalizeRiskLevel(a.checkups[0]?.riskLevel) || 'UNKNOWN'] || riskPriority.UNKNOWN;
+        const riskB = riskPriority[normalizeRiskLevel(b.checkups[0]?.riskLevel) || 'UNKNOWN'] || riskPriority.UNKNOWN;
         if (riskA !== riskB) return riskA - riskB;
         const lastExamA = a.checkups[0]?.examDate ? dayjs(a.checkups[0].examDate).valueOf() : 0;
         const lastExamB = b.checkups[0]?.examDate ? dayjs(b.checkups[0].examDate).valueOf() : 0;
@@ -181,8 +187,8 @@ export const getMonthlyCheckupOverview = async (req, res, next) => {
         rt: item.rt?.name || '-',
         posyandu: item.posyandu?.name || '-',
         parentPhone: item.parentPhone || null,
-        latestRisk: item.checkups[0]?.riskLevel || null,
-        latestStatus: item.checkups[0]?.statusLabel || null,
+        latestRisk: normalizeRiskLevel(item.checkups[0]?.riskLevel) || null,
+        latestStatus: normalizeStatusLabel(item.checkups[0]?.statusLabel || null, item.checkups[0]?.riskLevel),
         lastExamDate: item.checkups[0]?.examDate || null,
       }));
 

@@ -51,10 +51,22 @@ const buildCheckupIdealReference = (ageInMonths, gender) => {
   };
 };
 
+const normalizeLegacyRiskLevel = (riskLevel) => (riskLevel === 'ATTENTION' ? 'NORMAL' : riskLevel);
+
+const normalizeLegacyStatusLabel = (statusLabel, riskLevel) => {
+  if (!statusLabel) return statusLabel;
+  if (riskLevel !== 'ATTENTION') return statusLabel;
+  return String(statusLabel).replace(/perlu perhatian/gi, 'normal dengan indikator risiko awal KIA');
+};
+
 export const mapCheckup = (checkup, toddlerGender = null) => {
   const idealReference = toddlerGender ? buildCheckupIdealReference(checkup.ageInMonths, toddlerGender) : null;
+  const normalizedRiskLevel = normalizeLegacyRiskLevel(checkup.riskLevel);
+  const normalizedStatusLabel = normalizeLegacyStatusLabel(checkup.statusLabel, checkup.riskLevel);
   return {
     ...checkup,
+    riskLevel: normalizedRiskLevel,
+    statusLabel: normalizedStatusLabel,
     weight: Number(checkup.weight),
     height: Number(checkup.height),
     headCircumference: checkup.headCircumference !== null ? Number(checkup.headCircumference) : null,

@@ -121,7 +121,13 @@ const classifyMuac = (ageInMonths, muac) => {
   return KIA_2024_CODES.MUAC.NORMAL;
 };
 
-const resolveRiskLevelFromIndicatorCodes = ({ weightForAgeCode, heightForAgeCode, weightForHeightCode, headCircumferenceForAgeCode, muacCode }) => {
+const resolveRiskFromIndicatorCodes = ({
+  weightForAgeCode,
+  heightForAgeCode,
+  weightForHeightCode,
+  headCircumferenceForAgeCode,
+  muacCode,
+}) => {
   const stuntingCodes = new Set([KIA_2024_CODES.HEIGHT_FOR_AGE.SEVERELY_STUNTED, KIA_2024_CODES.HEIGHT_FOR_AGE.STUNTED]);
   const overweightCodes = new Set([KIA_2024_CODES.WEIGHT_FOR_HEIGHT.OVERWEIGHT, KIA_2024_CODES.WEIGHT_FOR_HEIGHT.OBESE]);
   const undernutritionCodes = new Set([
@@ -142,11 +148,17 @@ const resolveRiskLevelFromIndicatorCodes = ({ weightForAgeCode, heightForAgeCode
 
   const allCodes = [weightForAgeCode, heightForAgeCode, weightForHeightCode, headCircumferenceForAgeCode, muacCode].filter(Boolean);
 
-  if (allCodes.some((code) => stuntingCodes.has(code))) return 'STUNTING_RISK';
-  if (allCodes.some((code) => overweightCodes.has(code))) return 'OVERWEIGHT';
-  if (allCodes.some((code) => undernutritionCodes.has(code))) return 'UNDERNUTRITION';
-  if (allCodes.some((code) => attentionCodes.has(code))) return 'ATTENTION';
-  return 'NORMAL';
+  if (allCodes.some((code) => stuntingCodes.has(code))) {
+    return { riskLevel: 'STUNTING_RISK', earlyWarningCodes: [] };
+  }
+  if (allCodes.some((code) => overweightCodes.has(code))) {
+    return { riskLevel: 'OVERWEIGHT', earlyWarningCodes: [] };
+  }
+  if (allCodes.some((code) => undernutritionCodes.has(code))) {
+    return { riskLevel: 'UNDERNUTRITION', earlyWarningCodes: [] };
+  }
+  const earlyWarningCodes = allCodes.filter((code) => attentionCodes.has(code));
+  return { riskLevel: 'NORMAL', earlyWarningCodes };
 };
 
 export const evaluateGrowthStatus = ({ toddler, currentCheckup, previousCheckup = null }) => {
@@ -189,7 +201,7 @@ export const evaluateGrowthStatus = ({ toddler, currentCheckup, previousCheckup 
   const headCircumferenceForAgeCode = classifyHeadCircumferenceForAge(headCircumference, threshold);
   const muacCode = classifyMuac(ageInMonths, muac);
 
-  const riskLevel = resolveRiskLevelFromIndicatorCodes({
+  const { riskLevel, earlyWarningCodes } = resolveRiskFromIndicatorCodes({
     weightForAgeCode,
     heightForAgeCode,
     weightForHeightCode,
@@ -200,11 +212,12 @@ export const evaluateGrowthStatus = ({ toddler, currentCheckup, previousCheckup 
   const trendLabel = trend === 'UP' ? 'Berat badan naik' : trend === 'STABLE' ? 'Berat badan tetap' : 'Berat badan turun';
   const riskLabelMap = {
     NORMAL: 'Normal',
-    ATTENTION: 'Perlu perhatian',
     STUNTING_RISK: 'Risiko stunting',
     UNDERNUTRITION: 'Gizi kurang',
     OVERWEIGHT: 'Kelebihan berat badan',
   };
+  const hasEarlyWarning = earlyWarningCodes.length > 0;
+  const earlyWarningNote = hasEarlyWarning ? ` (indikator risiko awal KIA: ${earlyWarningCodes.join(', ')})` : '';
 
   const indicators = {
     weightForAge: {
@@ -252,8 +265,10 @@ export const evaluateGrowthStatus = ({ toddler, currentCheckup, previousCheckup 
     genderReferenceLabel: genderLabel,
     trend,
     riskLevel,
-    statusLabel: `${trendLabel}, ${riskLabelMap[riskLevel]} (${indicatorSummary}; acuan ${genderLabel})`,
-    summary: `Acuan KIA 2024 (${genderLabel}): ${indicatorSummary}. Kesimpulan ${riskLabelMap[riskLevel].toLowerCase()} dengan tren ${trendLabel.toLowerCase()}.`,
+    hasEarlyWarning,
+    earlyWarningCodes,
+    statusLabel: `${trendLabel}, ${riskLabelMap[riskLevel]}${earlyWarningNote} (${indicatorSummary}; acuan ${genderLabel})`,
+    summary: `Acuan KIA 2024 (${genderLabel}): ${indicatorSummary}. Kesimpulan ${riskLabelMap[riskLevel].toLowerCase()}${hasEarlyWarning ? ' dengan indikator risiko awal' : ''} dan tren ${trendLabel.toLowerCase()}.`,
     weightDelta,
     weightGap,
     heightGap,
@@ -274,7 +289,7 @@ export const evaluateGrowthStatus = ({ toddler, currentCheckup, previousCheckup 
 export const buildGrowthHistorySummary = (checkups = []) => {
   if (!checkups.length) {
     return {
-      latestRisk: 'ATTENTION',
+      latestRisk: 'NORMAL',
       latestTrend: 'STABLE',
       totalCheckups: 0,
     };

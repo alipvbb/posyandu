@@ -17,7 +17,7 @@ export const genderLabel = (value?: string) => (value === 'MALE' ? 'Laki-laki' :
 export const riskLabel = (value?: string) =>
   ({
     NORMAL: 'Normal',
-    ATTENTION: 'Perlu perhatian',
+    ATTENTION: 'Normal (indikator risiko awal KIA)',
     STUNTING_RISK: 'Risiko stunting',
     UNDERNUTRITION: 'Gizi kurang',
     OVERWEIGHT: 'Kelebihan berat badan',

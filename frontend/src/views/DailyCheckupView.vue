@@ -365,7 +365,7 @@ onMounted(async () => {
                   <strong><RouterLink :to="`/balita/${item.toddlerId}`">{{ item.fullName }}</RouterLink></strong>
                   <p class="muted-text">{{ item.hamlet }} • {{ item.posyandu }}</p>
                 </div>
-                <AppBadge :tone="riskTone(item.latestRisk || 'ATTENTION')">
+                <AppBadge :tone="riskTone(item.latestRisk || 'NORMAL')">
                   {{ item.latestRisk ? riskLabel(item.latestRisk) : 'Belum dinilai' }}
                 </AppBadge>
               </div>

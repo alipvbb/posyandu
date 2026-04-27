@@ -2,6 +2,8 @@ import dayjs from 'dayjs';
 import { prisma } from '../../config/prisma.js';
 import { getActorVillageId } from '../../utils/village-scope.js';
 
+const normalizeRiskLevel = (riskLevel) => (riskLevel === 'ATTENTION' ? 'NORMAL' : riskLevel || 'NORMAL');
+
 const lastMonths = (count) =>
   Array.from({ length: count }).map((_, index) => dayjs().subtract(count - index - 1, 'month'));
 
@@ -47,8 +49,8 @@ export const getDashboardSummary = async (req, res, next) => {
     ]);
 
     const activeToddlers = toddlers.filter((item) => item.status === 'ACTIVE');
-    const latestRisk = toddlers.filter((item) => item.checkups[0]?.riskLevel && item.checkups[0].riskLevel !== 'NORMAL');
-    const healthyGrowth = toddlers.filter((item) => item.checkups[0]?.riskLevel === 'NORMAL');
+    const latestRisk = toddlers.filter((item) => normalizeRiskLevel(item.checkups[0]?.riskLevel) !== 'NORMAL');
+    const healthyGrowth = toddlers.filter((item) => normalizeRiskLevel(item.checkups[0]?.riskLevel) === 'NORMAL');
     const dueThisMonth = activeToddlers.filter(
       (item) => !item.checkups[0] || !dayjs(item.checkups[0].examDate).isSame(now, 'month'),
     );
@@ -59,15 +61,14 @@ export const getDashboardSummary = async (req, res, next) => {
     const riskPriority = {
       STUNTING_RISK: 1,
       UNDERNUTRITION: 2,
-      ATTENTION: 3,
-      OVERWEIGHT: 4,
-      NORMAL: 5,
+      OVERWEIGHT: 3,
+      NORMAL: 4,
       UNKNOWN: 6,
     };
     const absenceFollowUpList = [...dueThisMonth]
       .sort((a, b) => {
-        const riskA = riskPriority[a.checkups[0]?.riskLevel || 'UNKNOWN'] || riskPriority.UNKNOWN;
-        const riskB = riskPriority[b.checkups[0]?.riskLevel || 'UNKNOWN'] || riskPriority.UNKNOWN;
+        const riskA = riskPriority[normalizeRiskLevel(a.checkups[0]?.riskLevel) || 'UNKNOWN'] || riskPriority.UNKNOWN;
+        const riskB = riskPriority[normalizeRiskLevel(b.checkups[0]?.riskLevel) || 'UNKNOWN'] || riskPriority.UNKNOWN;
         if (riskA !== riskB) return riskA - riskB;
         const lastExamA = a.checkups[0]?.examDate ? dayjs(a.checkups[0].examDate).valueOf() : 0;
         const lastExamB = b.checkups[0]?.examDate ? dayjs(b.checkups[0].examDate).valueOf() : 0;
@@ -82,7 +83,7 @@ export const getDashboardSummary = async (req, res, next) => {
         parentPhone: item.parentPhone,
         motherName: item.motherName,
         fatherName: item.fatherName,
-        latestRisk: item.checkups[0]?.riskLevel || null,
+        latestRisk: normalizeRiskLevel(item.checkups[0]?.riskLevel) || null,
         latestStatus: item.checkups[0]?.statusLabel || null,
         lastExamDate: item.checkups[0]?.examDate || null,
       }));
@@ -98,7 +99,7 @@ export const getDashboardSummary = async (req, res, next) => {
         motherName: item.motherName,
         attendanceDate: item.checkups[0]?.examDate || null,
         officerName: item.checkups[0]?.officerName || null,
-        latestRisk: item.checkups[0]?.riskLevel || null,
+        latestRisk: normalizeRiskLevel(item.checkups[0]?.riskLevel) || null,
       }));
     const monthlyChart = lastMonths(6).map((month) => ({
       label: month.format('MMM YYYY'),
@@ -109,7 +110,7 @@ export const getDashboardSummary = async (req, res, next) => {
       name: hamlet.name,
       totalToddlers: toddlers.filter((item) => item.hamletId === hamlet.id).length,
       riskToddlers: toddlers.filter(
-        (item) => item.hamletId === hamlet.id && item.checkups[0]?.riskLevel && item.checkups[0].riskLevel !== 'NORMAL',
+        (item) => item.hamletId === hamlet.id && normalizeRiskLevel(item.checkups[0]?.riskLevel) !== 'NORMAL',
       ).length,
     }));
 
@@ -124,14 +125,14 @@ export const getDashboardSummary = async (req, res, next) => {
           sebaranPerDusun: hamletDistribution,
           grafikPemeriksaanBulanan: monthlyChart,
           daftarButuhPerhatian: toddlers
-            .filter((item) => item.checkups[0]?.riskLevel && item.checkups[0].riskLevel !== 'NORMAL')
+            .filter((item) => normalizeRiskLevel(item.checkups[0]?.riskLevel) !== 'NORMAL')
             .slice(0, 10)
             .map((item) => ({
               id: item.id,
               fullName: item.fullName,
               code: item.code,
               hamlet: item.hamlet.name,
-              latestRisk: item.checkups[0]?.riskLevel,
+              latestRisk: normalizeRiskLevel(item.checkups[0]?.riskLevel),
               latestStatus: item.checkups[0]?.statusLabel,
             })),
           ringkasanKehadiranPosyandu: {
@@ -145,7 +146,7 @@ export const getDashboardSummary = async (req, res, next) => {
           shortcutScanQr: true,
           balitaBulanIni: checkedThisMonth.size,
           balitaBelumDiperiksaBulanIni: dueThisMonth.length,
-          balitaRisikoTinggi: toddlers.filter((item) => item.checkups[0]?.riskLevel === 'STUNTING_RISK').length,
+          balitaRisikoTinggi: toddlers.filter((item) => normalizeRiskLevel(item.checkups[0]?.riskLevel) === 'STUNTING_RISK').length,
           statistikPemeriksaanSingkat: {
             totalPemeriksaanBulanIni: monthlyCheckups.filter((item) => dayjs(item.examDate).isSame(now, 'month')).length,
             totalBalitaAktif: activeToddlers.length,
@@ -189,14 +190,14 @@ export const getDashboardRisk = async (req, res, next) => {
     });
 
     const items = toddlers
-      .filter((item) => item.checkups[0]?.riskLevel && item.checkups[0]?.riskLevel !== 'NORMAL')
+      .filter((item) => normalizeRiskLevel(item.checkups[0]?.riskLevel) !== 'NORMAL')
       .map((item) => ({
         id: item.id,
         code: item.code,
         fullName: item.fullName,
         hamlet: item.hamlet.name,
         posyandu: item.posyandu.name,
-        riskLevel: item.checkups[0].riskLevel,
+        riskLevel: normalizeRiskLevel(item.checkups[0].riskLevel),
         statusLabel: item.checkups[0].statusLabel,
         examDate: item.checkups[0].examDate,
       }));

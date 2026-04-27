@@ -6,7 +6,6 @@ import { getActorVillageId } from '../../utils/village-scope.js';
 
 const RISK_LABEL_MAP = {
   NORMAL: 'Normal',
-  ATTENTION: 'Perlu perhatian',
   STUNTING_RISK: 'Risiko stunting',
   UNDERNUTRITION: 'Gizi kurang',
   OVERWEIGHT: 'Kelebihan berat badan',
@@ -16,9 +15,10 @@ const RISK_PRIORITY = {
   STUNTING_RISK: 5,
   UNDERNUTRITION: 4,
   OVERWEIGHT: 3,
-  ATTENTION: 2,
   NORMAL: 1,
 };
+
+const normalizeRiskLevel = (riskLevel) => (riskLevel === 'ATTENTION' ? 'NORMAL' : riskLevel || 'NORMAL');
 
 const sendCsv = (res, filename, rows) => {
   const csv = stringify(rows, { header: true });
@@ -184,7 +184,7 @@ export const getToddlerReport = async (req, res, next) => {
       posyandu: item.posyandu.name,
       status: item.status,
       tanggal_pemeriksaan_terakhir: item.checkups[0]?.examDate.toISOString().slice(0, 10) || '-',
-      risiko_terakhir: item.checkups[0]?.riskLevel || '-',
+      risiko_terakhir: item.checkups[0]?.riskLevel ? normalizeRiskLevel(item.checkups[0].riskLevel) : '-',
       status_pertumbuhan: item.checkups[0]?.statusLabel || '-',
     }));
 
@@ -230,7 +230,7 @@ export const getCheckupReport = async (req, res, next) => {
       bb: Number(item.weight),
       tb: Number(item.height),
       status: item.statusLabel,
-      risiko: item.riskLevel,
+      risiko: normalizeRiskLevel(item.riskLevel),
       petugas: item.officerName,
     }));
 
@@ -271,13 +271,16 @@ export const getRiskReport = async (req, res, next) => {
     });
 
     const rows = toddlers
-      .filter((item) => item.checkups[0]?.riskLevel && item.checkups[0]?.riskLevel !== 'NORMAL')
+      .filter((item) => {
+        const risk = item.checkups[0]?.riskLevel;
+        return Boolean(risk) && normalizeRiskLevel(risk) !== 'NORMAL';
+      })
       .map((item) => ({
         kode_balita: item.code,
         nama_balita: item.fullName,
         dusun: item.hamlet.name,
         posyandu: item.posyandu.name,
-        risiko: item.checkups[0]?.riskLevel,
+        risiko: normalizeRiskLevel(item.checkups[0]?.riskLevel),
         status: item.checkups[0]?.statusLabel,
         tanggal_terakhir: item.checkups[0]?.examDate.toISOString().slice(0, 10),
       }));
@@ -310,7 +313,6 @@ export const getReportInsights = async (req, res, next) => {
           totalCheckups: 0,
           totalRisk: 0,
           normal: 0,
-          attention: 0,
           stuntingRisk: 0,
           undernutrition: 0,
           overweight: 0,
@@ -356,12 +358,12 @@ export const getReportInsights = async (req, res, next) => {
       const bucket = monthMap.get(key);
       if (!bucket) continue;
       bucket.totalCheckups += 1;
-      if (checkup.riskLevel !== 'NORMAL') bucket.totalRisk += 1;
-      if (checkup.riskLevel === 'NORMAL') bucket.normal += 1;
-      if (checkup.riskLevel === 'ATTENTION') bucket.attention += 1;
-      if (checkup.riskLevel === 'STUNTING_RISK') bucket.stuntingRisk += 1;
-      if (checkup.riskLevel === 'UNDERNUTRITION') bucket.undernutrition += 1;
-      if (checkup.riskLevel === 'OVERWEIGHT') bucket.overweight += 1;
+      const riskLevel = normalizeRiskLevel(checkup.riskLevel);
+      if (riskLevel !== 'NORMAL') bucket.totalRisk += 1;
+      if (riskLevel === 'NORMAL') bucket.normal += 1;
+      if (riskLevel === 'STUNTING_RISK') bucket.stuntingRisk += 1;
+      if (riskLevel === 'UNDERNUTRITION') bucket.undernutrition += 1;
+      if (riskLevel === 'OVERWEIGHT') bucket.overweight += 1;
     }
 
     const latestEvaluations = toddlers
@@ -377,7 +379,6 @@ export const getReportInsights = async (req, res, next) => {
 
     const riskCount = {
       NORMAL: 0,
-      ATTENTION: 0,
       STUNTING_RISK: 0,
       UNDERNUTRITION: 0,
       OVERWEIGHT: 0,
@@ -400,7 +401,7 @@ export const getReportInsights = async (req, res, next) => {
     }
 
     for (const item of latestEvaluations) {
-      const risk = item.latest.riskLevel;
+      const risk = normalizeRiskLevel(item.latest.riskLevel);
       riskCount[risk] += 1;
       const hamletKey = item.toddler.hamlet?.name || '-';
       const hamlet = hamletStatsMap.get(hamletKey);
@@ -424,9 +425,9 @@ export const getReportInsights = async (req, res, next) => {
       .sort((a, b) => b.totalDipantau - a.totalDipantau);
 
     const priorityToddlers = latestEvaluations
-      .filter((item) => item.latest.riskLevel !== 'NORMAL')
+      .filter((item) => normalizeRiskLevel(item.latest.riskLevel) !== 'NORMAL')
       .sort((a, b) => {
-        const riskDiff = RISK_PRIORITY[b.latest.riskLevel] - RISK_PRIORITY[a.latest.riskLevel];
+        const riskDiff = RISK_PRIORITY[normalizeRiskLevel(b.latest.riskLevel)] - RISK_PRIORITY[normalizeRiskLevel(a.latest.riskLevel)];
         if (riskDiff !== 0) return riskDiff;
         return new Date(a.latest.examDate).getTime() - new Date(b.latest.examDate).getTime();
       })
@@ -437,7 +438,7 @@ export const getReportInsights = async (req, res, next) => {
         namaBalita: item.toddler.fullName,
         dusun: item.toddler.hamlet?.name || '-',
         posyandu: item.toddler.posyandu?.name || '-',
-        riskLevel: item.latest.riskLevel,
+        riskLevel: normalizeRiskLevel(item.latest.riskLevel),
         statusLabel: item.latest.statusLabel,
         tanggalTerakhir: item.latest.examDate.toISOString().slice(0, 10),
       }));

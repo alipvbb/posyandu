@@ -133,7 +133,6 @@ onMounted(async () => {
           label="Risiko"
           :options="[
             { label: 'Normal', value: 'NORMAL' },
-            { label: 'Perlu perhatian', value: 'ATTENTION' },
             { label: 'Risiko stunting', value: 'STUNTING_RISK' },
             { label: 'Gizi kurang', value: 'UNDERNUTRITION' },
             { label: 'Kelebihan berat badan', value: 'OVERWEIGHT' },
