@@ -161,6 +161,37 @@ const mapPrismaError = (error) => {
   return error;
 };
 
+const resolveFamilyServiceArea = async ({ villageId, hamletId, rwId, rtId }) => {
+  const [village, hamlet, rw, rt] = await Promise.all([
+    prisma.village.findUnique({ where: { id: villageId }, select: { id: true } }),
+    prisma.hamlet.findUnique({ where: { id: hamletId }, select: { id: true, villageId: true } }),
+    prisma.rW.findUnique({ where: { id: rwId }, select: { id: true, hamletId: true } }),
+    prisma.rT.findUnique({ where: { id: rtId }, select: { id: true, rwId: true } }),
+  ]);
+
+  if (!village) throw new ApiError(422, 'Desa layanan tidak ditemukan');
+  if (!hamlet) throw new ApiError(422, 'Dusun layanan tidak ditemukan');
+  if (!rw) throw new ApiError(422, 'RW layanan tidak ditemukan');
+  if (!rt) throw new ApiError(422, 'RT layanan tidak ditemukan');
+
+  if (hamlet.villageId !== village.id) {
+    throw new ApiError(422, 'Dusun tidak sesuai dengan desa layanan yang dipilih');
+  }
+  if (rw.hamletId !== hamlet.id) {
+    throw new ApiError(422, 'RW tidak sesuai dengan dusun layanan yang dipilih');
+  }
+  if (rt.rwId !== rw.id) {
+    throw new ApiError(422, 'RT tidak sesuai dengan RW layanan yang dipilih');
+  }
+
+  return {
+    villageId: village.id,
+    hamletId: hamlet.id,
+    rwId: rw.id,
+    rtId: rt.id,
+  };
+};
+
 export const listFamilies = async (req, res, next) => {
   try {
     const actorVillageId = getActorVillageId(req.user);
@@ -203,15 +234,22 @@ export const createFamily = async (req, res, next) => {
   try {
     const actorVillageId = getActorVillageId(req.user);
     const payload = req.validated.body;
-    ensureVillageAccess(req.user, payload.villageId, 'Anda hanya dapat menambah Master KK pada desa Anda');
+    const targetVillageId = actorVillageId ?? payload.villageId;
+    ensureVillageAccess(req.user, targetVillageId, 'Anda hanya dapat menambah Master KK pada desa Anda');
+    const serviceArea = await resolveFamilyServiceArea({
+      villageId: targetVillageId,
+      hamletId: payload.hamletId,
+      rwId: payload.rwId,
+      rtId: payload.rtId,
+    });
     const members = normalizeFamilyMembers(payload.members);
     const created = await prisma.$transaction(async (tx) => {
       const family = await tx.family.create({
         data: {
-          villageId: actorVillageId ?? payload.villageId,
-          hamletId: payload.hamletId,
-          rwId: payload.rwId,
-          rtId: payload.rtId,
+          villageId: serviceArea.villageId,
+          hamletId: serviceArea.hamletId,
+          rwId: serviceArea.rwId,
+          rtId: serviceArea.rtId,
           domicileProvinceCode: payload.domicileProvinceCode,
           domicileProvinceName: payload.domicileProvinceName,
           domicileRegencyCode: payload.domicileRegencyCode,
@@ -269,16 +307,23 @@ export const updateFamily = async (req, res, next) => {
     const exists = await prisma.family.findUnique({ where: { id } });
     if (!exists) throw new ApiError(404, 'Master KK tidak ditemukan');
     ensureVillageAccess(req.user, exists.villageId, 'Anda hanya dapat mengubah Master KK pada desa Anda');
-    ensureVillageAccess(req.user, payload.villageId, 'Anda hanya dapat mengubah Master KK pada desa Anda');
+    const targetVillageId = actorVillageId ?? payload.villageId;
+    ensureVillageAccess(req.user, targetVillageId, 'Anda hanya dapat mengubah Master KK pada desa Anda');
+    const serviceArea = await resolveFamilyServiceArea({
+      villageId: targetVillageId,
+      hamletId: payload.hamletId,
+      rwId: payload.rwId,
+      rtId: payload.rtId,
+    });
 
     const updated = await prisma.$transaction(async (tx) => {
       await tx.family.update({
         where: { id },
         data: {
-          villageId: actorVillageId ?? payload.villageId,
-          hamletId: payload.hamletId,
-          rwId: payload.rwId,
-          rtId: payload.rtId,
+          villageId: serviceArea.villageId,
+          hamletId: serviceArea.hamletId,
+          rwId: serviceArea.rwId,
+          rtId: serviceArea.rtId,
           domicileProvinceCode: payload.domicileProvinceCode,
           domicileProvinceName: payload.domicileProvinceName,
           domicileRegencyCode: payload.domicileRegencyCode,

@@ -193,6 +193,42 @@ const matchedLocalVillageIds = computed(() => {
 
 const actorVillageId = computed(() => Number(authStore.user?.village?.id || 0) || null);
 
+const normalizeId = (value: string | number | null | undefined) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+
+const localVillageOptions = computed(() => {
+  const source = actorVillageId.value
+    ? masterDataStore.villages.filter((item: any) => item.id === actorVillageId.value)
+    : masterDataStore.villages;
+  return source.map((item: any) => ({ label: item.name, value: String(item.id) }));
+});
+
+const selectedLocalVillageId = computed(() => normalizeId(form.villageId));
+
+const localHamletOptions = computed(() =>
+  masterDataStore.hamlets
+    .filter((item: any) => item.villageId === selectedLocalVillageId.value)
+    .map((item: any) => ({ label: item.name, value: String(item.id) })),
+);
+
+const selectedLocalHamletId = computed(() => normalizeId(form.hamletId));
+
+const localRwOptions = computed(() =>
+  masterDataStore.rws
+    .filter((item: any) => item.hamletId === selectedLocalHamletId.value)
+    .map((item: any) => ({ label: item.name, value: String(item.id) })),
+);
+
+const selectedLocalRwId = computed(() => normalizeId(form.rwId));
+
+const localRtOptions = computed(() =>
+  masterDataStore.rts
+    .filter((item: any) => item.rwId === selectedLocalRwId.value)
+    .map((item: any) => ({ label: item.name, value: String(item.id) })),
+);
+
 const getDefaultServiceVillageId = () => {
   const matchedIds = matchedLocalVillageIds.value;
   if (matchedIds.length === 1) return matchedIds[0];
@@ -202,22 +238,56 @@ const getDefaultServiceVillageId = () => {
 
 const ensureLocalServiceDefaults = (preferMatchedVillage = true) => {
   const preferredVillageId = preferMatchedVillage ? getDefaultServiceVillageId() : actorVillageId.value;
-  const finalVillageId = preferredVillageId || Number(form.villageId) || masterDataStore.villages[0]?.id || null;
+  const currentVillageId = normalizeId(form.villageId);
+  const villageOptions = localVillageOptions.value;
+  const allowedVillageIds = villageOptions.map((item) => normalizeId(item.value)).filter((item): item is number => item !== null);
+  const finalVillageId =
+    (currentVillageId && allowedVillageIds.includes(currentVillageId) ? currentVillageId : null) ||
+    (preferredVillageId && allowedVillageIds.includes(preferredVillageId) ? preferredVillageId : null) ||
+    allowedVillageIds[0] ||
+    null;
   if (!finalVillageId) return;
 
   form.villageId = String(finalVillageId);
-  const firstHamlet = masterDataStore.hamlets.find((item: any) => item.villageId === finalVillageId);
-  if (!firstHamlet) return;
+  const hamletOptions = masterDataStore.hamlets.filter((item: any) => item.villageId === finalVillageId);
+  const currentHamletId = normalizeId(form.hamletId);
+  const finalHamletId =
+    (currentHamletId && hamletOptions.some((item: any) => item.id === currentHamletId) ? currentHamletId : null) ||
+    hamletOptions[0]?.id ||
+    null;
+  if (!finalHamletId) {
+    form.hamletId = '';
+    form.rwId = '';
+    form.rtId = '';
+    return;
+  }
 
-  form.hamletId = String(firstHamlet.id);
-  const firstRw = masterDataStore.rws.find((item: any) => item.hamletId === firstHamlet.id);
-  if (!firstRw) return;
+  form.hamletId = String(finalHamletId);
+  const rwOptions = masterDataStore.rws.filter((item: any) => item.hamletId === finalHamletId);
+  const currentRwId = normalizeId(form.rwId);
+  const finalRwId =
+    (currentRwId && rwOptions.some((item: any) => item.id === currentRwId) ? currentRwId : null) ||
+    rwOptions[0]?.id ||
+    null;
+  if (!finalRwId) {
+    form.rwId = '';
+    form.rtId = '';
+    return;
+  }
 
-  form.rwId = String(firstRw.id);
-  const firstRt = masterDataStore.rts.find((item: any) => item.rwId === firstRw.id);
-  if (!firstRt) return;
+  form.rwId = String(finalRwId);
+  const rtOptions = masterDataStore.rts.filter((item: any) => item.rwId === finalRwId);
+  const currentRtId = normalizeId(form.rtId);
+  const finalRtId =
+    (currentRtId && rtOptions.some((item: any) => item.id === currentRtId) ? currentRtId : null) ||
+    rtOptions[0]?.id ||
+    null;
+  if (!finalRtId) {
+    form.rtId = '';
+    return;
+  }
 
-  form.rtId = String(firstRt.id);
+  form.rtId = String(finalRtId);
 };
 
 const loadDomicileProvinces = async (showError = true) => {
@@ -679,6 +749,39 @@ onMounted(async () => {
               }}
             </small>
           </div>
+
+          <div class="card-panel kk-meta-card kk-meta-card--full">
+            <h3 class="kk-section-title">Wilayah Layanan Posyandu (Lokal)</h3>
+            <div class="kk-fields-grid">
+              <AppSelect
+                v-model="form.villageId"
+                label="Desa (Layanan)"
+                :options="localVillageOptions"
+                :disabled="Boolean(actorVillageId)"
+              />
+              <AppSelect
+                v-model="form.hamletId"
+                label="Dusun"
+                :options="localHamletOptions"
+                :disabled="!form.villageId"
+              />
+              <AppSelect
+                v-model="form.rwId"
+                label="RW"
+                :options="localRwOptions"
+                :disabled="!form.hamletId"
+              />
+              <AppSelect
+                v-model="form.rtId"
+                label="RT"
+                :options="localRtOptions"
+                :disabled="!form.rwId"
+              />
+            </div>
+            <small class="muted-text">
+              RT/RW hanya bisa dipilih dari data Pengaturan Wilayah & Posyandu dan otomatis dibatasi sesuai desa akun.
+            </small>
+          </div>
         </div>
 
         <div class="card-panel kk-members-card">
@@ -792,6 +895,10 @@ onMounted(async () => {
   border: 1px solid #dce8e2;
   min-width: 0;
   align-self: start;
+}
+
+.kk-meta-card--full {
+  grid-column: 1 / -1;
 }
 
 .kk-section-title {
