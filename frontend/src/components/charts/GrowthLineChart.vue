@@ -52,6 +52,14 @@ const chartMaxAge = computed(() => {
   return Math.min(59, rounded);
 });
 
+const chartDisplayMaxAge = computed(() => {
+  if (!rows.value.length) return chartMaxAge.value;
+  const latestAge = Number(rows.value[rows.value.length - 1].ageInMonths || 0);
+  const needExtraRightSpace = latestAge >= chartMaxAge.value - 0.15;
+  if (!needExtraRightSpace) return chartMaxAge.value;
+  return Math.min(59, chartMaxAge.value + 1);
+});
+
 const referenceRows = computed(() => buildKiaGrowthReference(resolvedGender.value, chartMaxAge.value));
 
 const referenceLineColor = {
@@ -131,6 +139,11 @@ const buildCommonOptions = (yLabel: string, yBounds: { min: number; max: number 
   ({
     responsive: true,
     maintainAspectRatio: false,
+    layout: {
+      padding: {
+        right: 12,
+      },
+    },
     interaction: {
       mode: 'index',
       intersect: false,
@@ -164,7 +177,7 @@ const buildCommonOptions = (yLabel: string, yBounds: { min: number; max: number 
       x: {
         type: 'linear' as const,
         min: 0,
-        max: chartMaxAge.value,
+        max: chartDisplayMaxAge.value,
         title: {
           display: true,
           text: 'Umur (bulan)',
@@ -217,8 +230,23 @@ const weightData = computed(() => ({
       borderColor: '#3f74c9',
       backgroundColor: '#3f74c9',
       borderWidth: 2,
-      pointRadius: 3,
-      pointHoverRadius: 4,
+      clip: false as const,
+      pointRadius(context: { dataIndex: number; dataset: { data: unknown[] } }) {
+        const isLatest = context.dataIndex === context.dataset.data.length - 1;
+        return isLatest ? 5 : 3;
+      },
+      pointHoverRadius(context: { dataIndex: number; dataset: { data: unknown[] } }) {
+        const isLatest = context.dataIndex === context.dataset.data.length - 1;
+        return isLatest ? 6 : 4;
+      },
+      pointBorderColor(context: { dataIndex: number; dataset: { data: unknown[] } }) {
+        const isLatest = context.dataIndex === context.dataset.data.length - 1;
+        return isLatest ? '#ffffff' : '#3f74c9';
+      },
+      pointBorderWidth(context: { dataIndex: number; dataset: { data: unknown[] } }) {
+        const isLatest = context.dataIndex === context.dataset.data.length - 1;
+        return isLatest ? 2 : 1;
+      },
       tension: 0.28,
     },
   ],
@@ -239,8 +267,23 @@ const heightData = computed(() => ({
       borderColor: '#3f74c9',
       backgroundColor: '#3f74c9',
       borderWidth: 2,
-      pointRadius: 3,
-      pointHoverRadius: 4,
+      clip: false as const,
+      pointRadius(context: { dataIndex: number; dataset: { data: unknown[] } }) {
+        const isLatest = context.dataIndex === context.dataset.data.length - 1;
+        return isLatest ? 5 : 3;
+      },
+      pointHoverRadius(context: { dataIndex: number; dataset: { data: unknown[] } }) {
+        const isLatest = context.dataIndex === context.dataset.data.length - 1;
+        return isLatest ? 6 : 4;
+      },
+      pointBorderColor(context: { dataIndex: number; dataset: { data: unknown[] } }) {
+        const isLatest = context.dataIndex === context.dataset.data.length - 1;
+        return isLatest ? '#ffffff' : '#3f74c9';
+      },
+      pointBorderWidth(context: { dataIndex: number; dataset: { data: unknown[] } }) {
+        const isLatest = context.dataIndex === context.dataset.data.length - 1;
+        return isLatest ? 2 : 1;
+      },
       tension: 0.28,
     },
   ],
@@ -320,4 +363,3 @@ const latest = computed(() => (rows.value.length ? rows.value[rows.value.length 
   }
 }
 </style>
-
