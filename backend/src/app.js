@@ -14,13 +14,28 @@ import { apiRouter } from './routes/index.js';
 
 export const app = express();
 
+const isDevelopment = env.nodeEnv !== 'production';
+
 app.use(
   cors({
     origin: env.corsOrigin.split(',').map((item) => item.trim()),
     credentials: true,
   }),
 );
-app.use(helmet());
+app.use(
+  helmet({
+    // Untuk akses LAN (IP lokal) kita hindari auto-upgrade ke HTTPS agar smartphone
+    // tidak gagal memuat asset saat server lokal berjalan via HTTP.
+    contentSecurityPolicy: {
+      useDefaults: true,
+      directives: {
+        'upgrade-insecure-requests': null,
+      },
+    },
+    // HSTS tidak perlu dipaksa saat development lokal.
+    ...(isDevelopment ? { hsts: false } : {}),
+  }),
+);
 app.use(
   compression({
     threshold: 1024,
