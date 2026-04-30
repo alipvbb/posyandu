@@ -12,8 +12,8 @@ const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 export const calculateAgeInMonths = (birthDate, examDate = new Date()) => {
   const start = dayjs(birthDate);
   const end = dayjs(examDate);
-  const raw = end.diff(start, 'month', true);
-  return clamp(Math.round(raw), 0, 59);
+  const fullMonths = end.diff(start, 'month');
+  return clamp(Number(fullMonths), 0, 59);
 };
 
 export const expectedWeightByAge = (ageInMonths, gender = 'MALE') =>

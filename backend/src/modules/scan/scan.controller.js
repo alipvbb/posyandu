@@ -67,7 +67,9 @@ export const resolveScan = async (req, res, next) => {
         code: toddler.code,
         hamlet: toddler.hamlet.name,
         posyandu: toddler.posyandu.name,
-        latestCheckup: toddler.checkups[0] ? mapCheckup(toddler.checkups[0], toddler.gender) : null,
+        latestCheckup: toddler.checkups[0]
+          ? mapCheckup(toddler.checkups[0], toddler.gender, toddler.birthDate)
+          : null,
         route: `/balita/${toddler.id}`,
         publicRoute: card ? `/public/cards/${card.publicToken}` : null,
       },

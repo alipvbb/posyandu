@@ -70,7 +70,7 @@ export const listToddlerCheckups = async (req, res, next) => {
     res.json({
       success: true,
       data: checkups.map((checkup) => ({
-        ...mapCheckup(checkup, toddler.gender),
+        ...mapCheckup(checkup, toddler.gender, toddler.birthDate),
         interventions: checkup.interventions,
         immunizations: checkup.immunizations,
       })),
@@ -233,7 +233,7 @@ export const createCheckup = async (req, res, next) => {
       orderBy: { examDate: 'desc' },
     });
 
-    const ageInMonths = payload.ageInMonths ?? calculateAgeInMonths(toddler.birthDate, payload.examDate);
+    const ageInMonths = calculateAgeInMonths(toddler.birthDate, payload.examDate);
     const evaluation = evaluateGrowthStatus({
       toddler,
       currentCheckup: { ...payload, ageInMonths },
@@ -305,7 +305,7 @@ export const createCheckup = async (req, res, next) => {
     res.status(201).json({
       success: true,
       data: {
-        ...mapCheckup(created, toddler.gender),
+        ...mapCheckup(created, toddler.gender, toddler.birthDate),
         interventions: created.interventions,
         immunizations: created.immunizations,
       },
@@ -333,7 +333,7 @@ export const updateCheckup = async (req, res, next) => {
 
     const merged = {
       examDate: payload.examDate || current.examDate,
-      ageInMonths: payload.ageInMonths || current.ageInMonths,
+      ageInMonths: calculateAgeInMonths(current.toddler.birthDate, payload.examDate || current.examDate),
       weight: payload.weight ?? Number(current.weight),
       height: payload.height ?? Number(current.height),
       headCircumference: payload.headCircumference ?? (current.headCircumference ? Number(current.headCircumference) : null),
@@ -399,7 +399,7 @@ export const updateCheckup = async (req, res, next) => {
     res.json({
       success: true,
       data: {
-        ...mapCheckup(updated, current.toddler.gender),
+        ...mapCheckup(updated, current.toddler.gender, current.toddler.birthDate),
         interventions: updated.interventions,
         immunizations: updated.immunizations,
       },

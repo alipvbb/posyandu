@@ -1,4 +1,5 @@
 import { getKmsReferenceByAge, normalizeGender } from '../../config/kms-reference.js';
+import { calculateAgeInMonths } from '../../services/growth.service.js';
 
 export const toddlerListInclude = {
   hamlet: true,
@@ -59,12 +60,17 @@ const normalizeLegacyStatusLabel = (statusLabel, riskLevel) => {
   return String(statusLabel).replace(/perlu perhatian/gi, 'normal dengan indikator risiko awal KIA');
 };
 
-export const mapCheckup = (checkup, toddlerGender = null) => {
-  const idealReference = toddlerGender ? buildCheckupIdealReference(checkup.ageInMonths, toddlerGender) : null;
+export const mapCheckup = (checkup, toddlerGender = null, toddlerBirthDate = null) => {
+  const resolvedAgeInMonths =
+    toddlerBirthDate && checkup?.examDate
+      ? calculateAgeInMonths(toddlerBirthDate, checkup.examDate)
+      : Number(checkup.ageInMonths);
+  const idealReference = toddlerGender ? buildCheckupIdealReference(resolvedAgeInMonths, toddlerGender) : null;
   const normalizedRiskLevel = normalizeLegacyRiskLevel(checkup.riskLevel);
   const normalizedStatusLabel = normalizeLegacyStatusLabel(checkup.statusLabel, checkup.riskLevel);
   return {
     ...checkup,
+    ageInMonths: resolvedAgeInMonths,
     riskLevel: normalizedRiskLevel,
     statusLabel: normalizedStatusLabel,
     weight: Number(checkup.weight),
@@ -110,6 +116,6 @@ export const mapToddler = (toddler) => ({
   rt: toddler.rt,
   posyandu: toddler.posyandu,
   card: toddler.cards?.[0] || null,
-  latestCheckup: toddler.checkups?.[0] ? mapCheckup(toddler.checkups[0], toddler.gender) : null,
-  checkups: toddler.checkups?.map((checkup) => mapCheckup(checkup, toddler.gender)) || [],
+  latestCheckup: toddler.checkups?.[0] ? mapCheckup(toddler.checkups[0], toddler.gender, toddler.birthDate) : null,
+  checkups: toddler.checkups?.map((checkup) => mapCheckup(checkup, toddler.gender, toddler.birthDate)) || [],
 });

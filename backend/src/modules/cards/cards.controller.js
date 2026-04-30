@@ -95,8 +95,10 @@ export const getPublicCard = async (req, res, next) => {
           publicToken: card.publicToken,
           publicUrl: buildPublicCardUrl(req, card.publicToken),
         },
-        latestCheckup: filteredCheckups[0] ? mapCheckup(filteredCheckups[0], card.toddler.gender) : null,
-        history: filteredCheckups.map((item) => mapCheckup(item, card.toddler.gender)),
+        latestCheckup: filteredCheckups[0]
+          ? mapCheckup(filteredCheckups[0], card.toddler.gender, card.toddler.birthDate)
+          : null,
+        history: filteredCheckups.map((item) => mapCheckup(item, card.toddler.gender, card.toddler.birthDate)),
         filter: {
           years,
           options: [1, 2, 3, 5, 'all'],
