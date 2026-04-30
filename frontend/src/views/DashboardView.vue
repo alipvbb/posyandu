@@ -62,8 +62,9 @@ onMounted(async () => {
     const [summaryData, riskData] = await Promise.all([dashboardService.getSummary(), dashboardService.getRisk()]);
     summary.value = summaryData;
     riskItems.value = riskData;
-  } catch (_error) {
-    appStore.pushToast('Gagal memuat dashboard.', 'error');
+  } catch (error: any) {
+    const message = error?.response?.data?.message || error?.message || 'Gagal memuat dashboard.';
+    appStore.pushToast(message, 'error');
   } finally {
     loading.value = false;
   }

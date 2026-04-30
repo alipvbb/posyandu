@@ -1,1 +1,0 @@
-import{_ as s,o as c,c as o,G as r}from"./index-CwKC5h6c.js";const t={},n={class:"card-panel"};function a(e,_){return c(),o("section",n,[r(e.$slots,"default")])}const d=s(t,[["render",a]]);export{d as A};
