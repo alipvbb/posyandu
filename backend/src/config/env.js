@@ -4,12 +4,13 @@ import { fileURLToPath } from 'node:url';
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const backendRoot = path.resolve(currentDir, '../..');
+const isProduction = (process.env.NODE_ENV || '').toLowerCase() === 'production';
 
 // Prioritaskan env file di folder backend saat dijalankan dari root monorepo.
-// override:true dipakai agar env deployment lama tidak menimpa kredensial terbaru.
-dotenv.config({ path: path.join(backendRoot, '.env'), override: true });
+// Di production, env dari platform hosting harus menang agar nilai panel (hPanel) tidak ketimpa file lokal.
+dotenv.config({ path: path.join(backendRoot, '.env'), override: !isProduction });
 // Tetap dukung default dotenv lookup untuk kompatibilitas hosting.
-dotenv.config();
+dotenv.config({ override: !isProduction });
 
 const buildDatabaseUrlFromParts = () => {
   const host = process.env.DB_HOST;

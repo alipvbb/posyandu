@@ -21,7 +21,6 @@ faker.seed(20260421);
 const maleNames = ['Ahmad', 'Budi', 'Dimas', 'Rizky', 'Rafi', 'Fajar', 'Andi', 'Yoga', 'Ilham', 'Bagas', 'Arif', 'Hanif'];
 const femaleNames = ['Siti', 'Ayu', 'Rina', 'Nadia', 'Putri', 'Lestari', 'Wulan', 'Dewi', 'Nabila', 'Citra', 'Fina', 'Maya'];
 const lastNames = ['Saputra', 'Pratama', 'Lestari', 'Wibowo', 'Rahmawati', 'Hidayat', 'Sari', 'Wijaya', 'Maulana', 'Permata'];
-const hamletNames = ['Dusun Melati', 'Dusun Kenanga', 'Dusun Cempaka', 'Dusun Anggrek'];
 
 const randomName = (gender) => {
   const first = gender === 'MALE' ? faker.helpers.arrayElement(maleNames) : faker.helpers.arrayElement(femaleNames);
@@ -32,7 +31,7 @@ const randomPhone = () => `08${faker.string.numeric(10)}`;
 const randomNik = () => faker.string.numeric(16);
 const randomFamilyNumber = () => faker.string.numeric(16);
 const randomBool = (chance) => faker.number.float({ min: 0, max: 1 }) < chance;
-const SEED_ABSENT_THIS_MONTH_COUNT = 10;
+const TARGET_TODDLER_COUNT = 200;
 
 const riskProfiles = [
   ...Array.from({ length: 50 }, () => 'NORMAL'),
@@ -253,49 +252,48 @@ async function main() {
   const rts = [];
   const posyandus = [];
 
-  for (let i = 0; i < hamletNames.length; i += 1) {
-    const hamlet = await prisma.hamlet.create({
-      data: {
-        villageId: village.id,
-        name: hamletNames[i],
-        code: `HML-${i + 1}`,
-      },
-    });
-    hamlets.push(hamlet);
+  const hamlet = await prisma.hamlet.create({
+    data: {
+      villageId: village.id,
+      name: 'Dusun Utama',
+      code: 'HML-1',
+    },
+  });
+  hamlets.push(hamlet);
 
-    const posyandu = await prisma.posyandu.create({
+  const posyandu = await prisma.posyandu.create({
+    data: {
+      villageId: village.id,
+      hamletId: hamlet.id,
+      name: 'Posyandu Utama',
+      code: 'POS-1',
+      locationAddress: 'Dusun Utama, Desa Suka Sehat',
+      scheduleDay: faker.helpers.arrayElement(['Senin', 'Selasa', 'Rabu', 'Kamis']),
+      contactPhone: randomPhone(),
+    },
+  });
+  posyandus.push(posyandu);
+
+  for (let rwNumber = 1; rwNumber <= 5; rwNumber += 1) {
+    const rw = await prisma.rW.create({
       data: {
-        villageId: village.id,
         hamletId: hamlet.id,
-        name: `Posyandu ${hamletNames[i].replace('Dusun ', '')}`,
-        code: `POS-${i + 1}`,
-        locationAddress: `${hamletNames[i]}, Desa Suka Sehat`,
-        scheduleDay: faker.helpers.arrayElement(['Senin', 'Selasa', 'Rabu', 'Kamis']),
-        contactPhone: randomPhone(),
+        name: `RW ${rwNumber.toString().padStart(2, '0')}`,
+        code: `RW-1-${rwNumber}`,
       },
     });
-    posyandus.push(posyandu);
+    rws.push(rw);
 
-    for (let rwNumber = 1; rwNumber <= 2; rwNumber += 1) {
-      const rw = await prisma.rW.create({
+    const rtCount = faker.number.int({ min: 4, max: 7 });
+    for (let rtNumber = 1; rtNumber <= rtCount; rtNumber += 1) {
+      const rt = await prisma.rT.create({
         data: {
-          hamletId: hamlet.id,
-          name: `RW ${rwNumber.toString().padStart(2, '0')}`,
-          code: `RW-${i + 1}-${rwNumber}`,
+          rwId: rw.id,
+          name: `RT ${rtNumber.toString().padStart(2, '0')}`,
+          code: `RT-1-${rwNumber}-${rtNumber}`,
         },
       });
-      rws.push(rw);
-
-      for (let rtNumber = 1; rtNumber <= 2; rtNumber += 1) {
-        const rt = await prisma.rT.create({
-          data: {
-            rwId: rw.id,
-            name: `RT ${rtNumber.toString().padStart(2, '0')}`,
-            code: `RT-${i + 1}-${rwNumber}-${rtNumber}`,
-          },
-        });
-        rts.push(rt);
-      }
+      rts.push(rt);
     }
   }
 
@@ -331,7 +329,7 @@ async function main() {
   });
 
   const families = [];
-  for (let i = 0; i < 85; i += 1) {
+  for (let i = 0; i < 120; i += 1) {
     const hamlet = faker.helpers.arrayElement(hamlets);
     const hamletRws = rws.filter((item) => item.hamletId === hamlet.id);
     const rw = faker.helpers.arrayElement(hamletRws);
@@ -406,11 +404,11 @@ async function main() {
 
   let toddlerCounter = 0;
   const familyCapacity = new Map(families.map((item) => [item.id, 0]));
-  let seededAbsentThisMonthCount = 0;
+  const maxChildrenPerFamily = 4;
 
-  while (toddlerCounter < 110) {
+  while (toddlerCounter < TARGET_TODDLER_COUNT) {
     const family = faker.helpers.arrayElement(
-      families.filter((item) => familyCapacity.get(item.id) < 2 || families.length - toddlerCounter > 10),
+      families.filter((item) => (familyCapacity.get(item.id) || 0) < maxChildrenPerFamily),
     );
     familyCapacity.set(family.id, (familyCapacity.get(family.id) || 0) + 1);
 
@@ -420,13 +418,18 @@ async function main() {
     const posyandu = faker.helpers.arrayElement(posyandus.filter((item) => item.hamletId === family.hamletId));
     const gender = faker.helpers.arrayElement(['MALE', 'FEMALE']);
     const profile = pickRiskProfile(toddlerCounter);
-    const shouldSeedAbsentThisMonth = toddlerCounter < SEED_ABSENT_THIS_MONTH_COUNT;
-    const ageInMonths = shouldSeedAbsentThisMonth ? faker.number.int({ min: 2, max: 59 }) : faker.number.int({ min: 0, max: 59 });
-    const birthDate = dayjs().subtract(ageInMonths, 'month').subtract(faker.number.int({ min: 0, max: 27 }), 'day').toDate();
+    const ageInMonths = faker.number.int({ min: 13, max: 59 });
+    let birthDate = dayjs()
+      .subtract(ageInMonths, 'month')
+      .subtract(faker.number.int({ min: 0, max: 27 }), 'day')
+      .toDate();
+    while (calculateAgeInMonths(birthDate, new Date()) < 12) {
+      birthDate = dayjs(birthDate).subtract(1, 'day').toDate();
+    }
     const fullName = randomName(gender);
     const qrCodeValue = `TDR-${faker.string.alphanumeric(12).toUpperCase()}`;
     const publicToken = faker.string.alphanumeric(16);
-    const toddlerStatus = shouldSeedAbsentThisMonth ? 'ACTIVE' : randomBool(0.92) ? 'ACTIVE' : 'INACTIVE';
+    const toddlerStatus = randomBool(0.95) ? 'ACTIVE' : 'INACTIVE';
 
     const toddler = await prisma.toddler.create({
       data: {
@@ -460,7 +463,7 @@ async function main() {
 
     const historyCount = faker.number.int({ min: 2, max: Math.min(Math.max(ageInMonths + 1, 2), 10) });
     const examDates = Array.from({ length: historyCount }).map((_, index) => {
-      const monthsBack = Math.max(historyCount - index - 1, 0) + (shouldSeedAbsentThisMonth ? 1 : 0);
+      const monthsBack = Math.max(historyCount - index - 1, 0);
       return dayjs().subtract(monthsBack, 'month').subtract(faker.number.int({ min: 0, max: 4 }), 'day');
     });
 
@@ -488,11 +491,13 @@ async function main() {
               faker.number.int({ min: 1, max: 2 }),
             )
           : [];
-      const immunizationIds = immunizationRecords
-        .filter((item) => item.recommendedAtMonth === null || item.recommendedAtMonth <= ageAtExam)
-        .filter(() => randomBool(0.2))
-        .slice(0, 2)
-        .map((item) => item.id);
+      const dueImmunizations = immunizationRecords.filter(
+        (item) => item.recommendedAtMonth === null || item.recommendedAtMonth <= ageAtExam,
+      );
+      const immunizationIds = faker.helpers.arrayElements(
+        dueImmunizations.map((item) => item.id),
+        faker.number.int({ min: 1, max: Math.max(1, Math.min(3, dueImmunizations.length)) }),
+      );
 
       const checkup = await prisma.checkup.create({
         data: {
@@ -505,7 +510,7 @@ async function main() {
           height: measures.height,
           headCircumference: measures.headCircumference,
           muac: measures.muac,
-          immunizationNote: immunizationIds.length ? 'Imunisasi diberikan sesuai jadwal.' : null,
+          immunizationNote: 'Imunisasi hadir dan diberikan sesuai jadwal kunjungan.',
           vitaminPmtNote: interventionTypeIds.length ? 'Diberikan intervensi dan edukasi singkat.' : null,
           complaintNote: randomBool(0.15) ? faker.helpers.arrayElement(['Nafsu makan turun', 'Batuk ringan', 'Demam pekan lalu']) : null,
           officerName: faker.helpers.arrayElement(['Bidan Desa', 'Kader Posyandu', 'Perawat Puskesmas']),
@@ -551,16 +556,18 @@ async function main() {
       };
     }
 
-    if (shouldSeedAbsentThisMonth && toddlerStatus === 'ACTIVE') {
-      seededAbsentThisMonthCount += 1;
-    }
-
     toddlerCounter += 1;
   }
 
+  const rtSummaryPerRw = rws.map((rw) => ({
+    rw: rw.name,
+    rtCount: rts.filter((rt) => rt.rwId === rw.id).length,
+  }));
+
   console.log(
-    `Seed selesai: 110 balita, user default, wilayah, dan histori pemeriksaan berhasil dibuat. Simulasi balita belum hadir bulan ini: ${seededAbsentThisMonthCount} anak.`,
+    `Seed selesai: ${TARGET_TODDLER_COUNT} balita usia 1-5 tahun, 1 desa, 1 dusun, 5 RW, RT per RW 4-7, imunisasi selalu hadir.`,
   );
+  console.log(`Ringkasan RT per RW: ${rtSummaryPerRw.map((item) => `${item.rw}:${item.rtCount}`).join(', ')}`);
 }
 
 main()
