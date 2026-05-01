@@ -94,9 +94,27 @@ export const useAuthStore = defineStore('auth', {
       }
     },
     async loadProfile() {
-      if (!tokenStorage.getAccessToken()) {
-        this.setUser(null);
+      const accessToken = tokenStorage.getAccessToken();
+      const refreshToken = tokenStorage.getRefreshToken();
+
+      if (!accessToken && !refreshToken) {
+        this.clearSession();
         return null;
+      }
+
+      if (!accessToken && refreshToken) {
+        try {
+          const refreshedUser = await authService.refreshSession();
+          if (refreshedUser) {
+            this.setUser(refreshedUser);
+            return this.user;
+          }
+          this.clearSession();
+          return null;
+        } catch (_error) {
+          this.clearSession();
+          return null;
+        }
       }
       try {
         this.setUser(await authService.me());
@@ -104,6 +122,17 @@ export const useAuthStore = defineStore('auth', {
       } catch (error: any) {
         const status = Number(error?.response?.status || 0);
         if (status === 401 || status === 403) {
+          if (refreshToken) {
+            try {
+              const refreshedUser = await authService.refreshSession();
+              if (refreshedUser) {
+                this.setUser(refreshedUser);
+                return this.user;
+              }
+            } catch (_refreshError) {
+              // lanjut clearSession di bawah
+            }
+          }
           this.clearSession();
           return null;
         }

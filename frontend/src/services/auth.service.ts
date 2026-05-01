@@ -1,4 +1,5 @@
 import { api, tokenStorage } from './api';
+import axios from 'axios';
 
 export const authService = {
   async register(payload: {
@@ -56,6 +57,21 @@ export const authService = {
   async me() {
     const response = await api.get('/auth/me');
     return response.data.data;
+  },
+  async refreshSession() {
+    const refreshToken = tokenStorage.getRefreshToken();
+    if (!refreshToken) return null;
+
+    const response = await axios.post('/api/auth/refresh', { refreshToken });
+    const payload = response.data?.data;
+    if (!payload?.accessToken || !payload?.refreshToken) return null;
+
+    tokenStorage.setTokens({
+      accessToken: payload.accessToken,
+      refreshToken: payload.refreshToken,
+    });
+
+    return payload.user ?? null;
   },
   async logout() {
     await api.post('/auth/logout');
