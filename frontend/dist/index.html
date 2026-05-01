@@ -50,6 +50,33 @@
         const fallbackEl = document.getElementById('boot-fallback');
         if (!fallbackEl) return;
 
+        const shouldIgnoreExternalRuntimeError = (eventOrReason) => {
+          const text = String(
+            eventOrReason?.message ||
+              eventOrReason?.reason?.message ||
+              eventOrReason?.reason ||
+              eventOrReason ||
+              '',
+          ).toLowerCase();
+
+          const filename = String(eventOrReason?.filename || '').toLowerCase();
+          const stack = String(eventOrReason?.error?.stack || eventOrReason?.reason?.stack || '').toLowerCase();
+
+          const isExtensionSource =
+            filename.includes('chrome-extension://') ||
+            filename.includes('moz-extension://') ||
+            stack.includes('chrome-extension://') ||
+            stack.includes('moz-extension://');
+
+          const knownExternalNoise =
+            text.includes('cannot redefine property: ethereum') ||
+            text.includes('removing unpermitted intrinsics') ||
+            text.includes('lava moat') ||
+            text.includes('lavamoat');
+
+          return isExtensionSource || knownExternalNoise;
+        };
+
         const showError = (message) => {
           fallbackEl.style.background = '#fff5dc';
           fallbackEl.style.color = '#7f5f1c';
@@ -72,6 +99,10 @@
         }
 
         window.addEventListener('error', function (event) {
+          if (shouldIgnoreExternalRuntimeError(event)) {
+            return;
+          }
+
           const target = event && event.target;
           if (target && target.tagName === 'SCRIPT') {
             showError('File JavaScript gagal dimuat. Coba hard refresh atau hapus cache browser.');
@@ -84,6 +115,10 @@
         });
 
         window.addEventListener('unhandledrejection', function (event) {
+          if (shouldIgnoreExternalRuntimeError(event)) {
+            return;
+          }
+
           const reason = event && event.reason;
           const message =
             (reason && (reason.message || reason.toString && reason.toString())) ||
