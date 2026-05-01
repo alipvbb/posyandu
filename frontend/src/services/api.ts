@@ -1,7 +1,26 @@
 import axios, { type InternalAxiosRequestConfig } from 'axios';
 import { useAppStore } from '../stores/app';
 
-export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '');
+const resolveApiBaseUrl = () => {
+  const raw = String(import.meta.env.VITE_API_BASE_URL || '/api').trim();
+  const normalized = raw.replace(/\/+$/, '') || '/api';
+
+  if (typeof window === 'undefined') {
+    return normalized;
+  }
+
+  const isPublicHost = !['localhost', '127.0.0.1'].includes(window.location.hostname);
+  const pointsToLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(normalized);
+
+  // Safety guard: di domain publik, jangan pernah panggil API localhost.
+  if (isPublicHost && pointsToLocalhost) {
+    return '/api';
+  }
+
+  return normalized;
+};
+
+export const API_BASE_URL = resolveApiBaseUrl();
 
 const storageKeys = {
   accessToken: 'posyandu_access_token',
