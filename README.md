@@ -226,14 +226,14 @@ npm run start
 
 4. Node version: gunakan `20.x` (lebih stabil untuk runtime Prisma di shared hosting).
 5. Set environment variable minimal:
-   - `DATABASE_URL`
+   - `DATABASE_URL` (atau kombinasi `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`)
    - `JWT_ACCESS_SECRET`
    - `JWT_REFRESH_SECRET`
-   - `JWT_ACCESS_EXPIRES_IN=15m`
-   - `JWT_REFRESH_EXPIRES_IN=7d`
+   - `JWT_ACCESS_EXPIRES_IN=24h`
+   - `JWT_REFRESH_EXPIRES_IN=360d`
    - `NODE_ENV=production`
    - `APP_PUBLIC_BASE_URL=https://posyandu.online`
-   - `CORS_ORIGIN=https://posyandu.online`
+   - `CORS_ORIGIN=https://posyandu.online,https://www.posyandu.online`
 
 Catatan: folder `frontend/dist` sudah ikut di-repo, jadi frontend tidak wajib di-build terpisah di server.
 
