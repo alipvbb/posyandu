@@ -5,12 +5,19 @@ export const notFoundHandler = (_req, _res, next) => {
 };
 
 export const errorHandler = (error, _req, res, _next) => {
-  console.error(error);
   const statusCode = error instanceof ApiError ? error.statusCode : 500;
+  const message = error?.message || 'Terjadi kesalahan pada server';
+
+  if (statusCode >= 500) {
+    console.error(error);
+  } else {
+    // Hindari log stack trace berulang untuk error validasi/auth yang memang expected.
+    console.warn(`[HTTP ${statusCode}] ${message}`);
+  }
+
   res.status(statusCode).json({
     success: false,
-    message: error.message || 'Terjadi kesalahan pada server',
+    message,
     details: error.details || null,
   });
 };
-

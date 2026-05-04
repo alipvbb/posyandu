@@ -60,6 +60,14 @@ export const authenticate = async (req, _res, next) => {
 
     next();
   } catch (error) {
+    if (error?.name === 'TokenExpiredError') {
+      return next(new ApiError(401, 'Sesi login berakhir. Silakan login ulang.'));
+    }
+
+    if (error?.name === 'JsonWebTokenError' || error?.name === 'NotBeforeError') {
+      return next(new ApiError(401, 'Token tidak valid'));
+    }
+
     next(error);
   }
 };
