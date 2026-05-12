@@ -114,6 +114,31 @@ textarea {
   color: var(--muted);
 }
 
+.app-credit {
+  display: block;
+  color: #789286;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.app-credit--auth {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  text-align: center;
+  opacity: 0.82;
+}
+
+.app-credit--sidebar {
+  font-size: 0.7rem;
+}
+
+.app-credit--mobile {
+  margin-bottom: 8px;
+  text-align: center;
+}
+
 .app-shell {
   min-height: 100vh;
   display: flex;

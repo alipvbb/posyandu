@@ -155,6 +155,7 @@ onBeforeUnmount(() => {
           <strong>{{ authStore.user?.name }}</strong>
           <small>{{ authStore.user?.roles?.[0]?.name }}</small>
         </div>
+        <small class="app-credit app-credit--sidebar">Dibuat oleh CV. Mentari Timur Swargo</small>
         <button class="ghost-button" type="button" @click="handleLogout">Logout</button>
       </div>
     </aside>
@@ -244,6 +245,7 @@ onBeforeUnmount(() => {
           </nav>
 
           <div class="mobile-menu-footer">
+            <small class="app-credit app-credit--mobile">Dibuat oleh CV. Mentari Timur Swargo</small>
             <button class="app-button" type="button" data-block="true" @click="handleLogout">Logout</button>
           </div>
         </aside>
