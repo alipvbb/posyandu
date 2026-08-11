@@ -267,6 +267,45 @@ const filteredPosyandus = computed(() =>
   ),
 );
 
+const serviceReadinessItems = computed(() => [
+  {
+    label: 'Dusun',
+    status: masterDataStore.hamlets.length ? 'ready' : 'missing',
+    text: masterDataStore.hamlets.length
+      ? `${masterDataStore.hamlets.length} dusun tersedia`
+      : 'Belum ada dusun. Tambahkan di Pengaturan.',
+  },
+  {
+    label: 'RW',
+    status: !form.hamletId ? 'waiting' : filteredRws.value.length ? 'ready' : 'missing',
+    text: !form.hamletId
+      ? 'Pilih dusun dulu'
+      : filteredRws.value.length
+        ? `${filteredRws.value.length} RW di dusun ini`
+        : 'Belum ada RW di dusun ini',
+  },
+  {
+    label: 'RT',
+    status: !form.rwId ? 'waiting' : filteredRts.value.length ? 'ready' : 'missing',
+    text: !form.rwId
+      ? 'Pilih RW dulu'
+      : filteredRts.value.length
+        ? `${filteredRts.value.length} RT di RW ini`
+        : 'Belum ada RT di RW ini',
+  },
+  {
+    label: 'Posyandu',
+    status: !form.hamletId ? 'waiting' : filteredPosyandus.value.length ? 'ready' : 'missing',
+    text: !form.hamletId
+      ? 'Pilih dusun dulu'
+      : filteredPosyandus.value.length
+        ? `${filteredPosyandus.value.length} posyandu di dusun ini`
+        : 'Belum ada posyandu di dusun ini',
+  },
+]);
+
+const hasMissingServiceData = computed(() => serviceReadinessItems.value.some((item) => item.status === 'missing'));
+
 const familyOptions = computed(() =>
   masterDataStore.families.map((item: any) => ({
     label: `${item.familyNumber} • ${item.headName}`,
@@ -398,7 +437,7 @@ const submit = () => {
   }
 
   if (!form.familyId || !form.fullName || !form.birthDate || !form.gender || !form.hamletId || !form.rwId || !form.rtId || !form.posyanduId) {
-    appStore.pushToast('Lengkapi Master KK, identitas balita, wilayah layanan, RT/RW, dan posyandu sebelum menyimpan.', 'error');
+    appStore.pushToast('Lengkapi Master KK, identitas balita, dan Wilayah Layanan. Jika combobox kosong, buka Pengaturan untuk membuat Dusun/RW/RT/Posyandu dulu.', 'error');
     return;
   }
 
@@ -430,6 +469,21 @@ const submit = () => {
     <AppInfoNote title="Urutan input balita">
       Pilih Master KK terlebih dahulu, lalu pilih anak usia 0-59 bulan. Dusun, RW, RT, alamat, dan orang tua akan mengikuti data KK agar tidak salah wilayah.
     </AppInfoNote>
+    <div class="setup-checklist" :data-has-warning="hasMissingServiceData">
+      <div class="setup-checklist-head">
+        <div>
+          <strong>Kesiapan Wilayah Layanan</strong>
+          <small>Combobox Dusun, RW, RT, dan Posyandu mengambil data dari menu Pengaturan.</small>
+        </div>
+        <RouterLink to="/pengaturan" class="app-button" data-variant="secondary">Buka Pengaturan</RouterLink>
+      </div>
+      <div class="setup-checklist-grid">
+        <div v-for="item in serviceReadinessItems" :key="item.label" class="setup-checklist-item" :data-status="item.status">
+          <strong>{{ item.label }}</strong>
+          <small>{{ item.text }}</small>
+        </div>
+      </div>
+    </div>
     <div class="grid-cards" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr))">
       <AppSelect v-model="form.familyId" label="Master KK" required :options="familyOptions" empty-hint="Master KK belum ada. Tambahkan dulu di menu Master KK." />
       <AppSelect

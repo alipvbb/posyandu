@@ -488,6 +488,79 @@ textarea.form-input {
   color: #1f7a57;
 }
 
+.setup-checklist {
+  border: 1px solid #dce9e2;
+  border-radius: 16px;
+  padding: 10px;
+  background: #fbfdfc;
+  display: grid;
+  gap: 10px;
+}
+
+.setup-checklist[data-has-warning='true'] {
+  border-color: #f2ddb9;
+  background: #fffaf0;
+}
+
+.setup-checklist-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.setup-checklist-head > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.setup-checklist-head strong {
+  color: var(--primary-deep);
+}
+
+.setup-checklist-head small,
+.setup-checklist-item small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.setup-checklist-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.setup-checklist-item {
+  border: 1px solid #e1ece6;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 8px 10px;
+  display: grid;
+  gap: 2px;
+}
+
+.setup-checklist-item strong {
+  color: var(--primary-deep);
+  font-size: 0.86rem;
+}
+
+.setup-checklist-item[data-status='ready'] {
+  border-color: #cde8da;
+  background: #effaf4;
+}
+
+.setup-checklist-item[data-status='missing'] {
+  border-color: #f2ddb9;
+  background: #fff6e6;
+}
+
+.setup-checklist-item[data-status='waiting'] {
+  border-color: #dbe6ef;
+  background: #f7fafc;
+}
+
 .form-input:focus,
 textarea.form-input:focus {
   outline: 2px solid rgba(90, 163, 143, 0.22);

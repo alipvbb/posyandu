@@ -218,6 +218,45 @@ const localRtOptions = computed(() =>
     .map((item: any) => ({ label: item.name, value: String(item.id) })),
 );
 
+const serviceReadinessItems = computed(() => [
+  {
+    label: 'Desa',
+    status: localVillageOptions.value.length ? 'ready' : 'missing',
+    text: localVillageOptions.value.length
+      ? `${localVillageOptions.value.length} desa tersedia untuk akun ini`
+      : 'Desa akun belum tersedia',
+  },
+  {
+    label: 'Dusun',
+    status: !form.villageId ? 'waiting' : localHamletOptions.value.length ? 'ready' : 'missing',
+    text: !form.villageId
+      ? 'Pilih desa layanan dulu'
+      : localHamletOptions.value.length
+        ? `${localHamletOptions.value.length} dusun tersedia`
+        : 'Belum ada dusun di desa ini',
+  },
+  {
+    label: 'RW',
+    status: !form.hamletId ? 'waiting' : localRwOptions.value.length ? 'ready' : 'missing',
+    text: !form.hamletId
+      ? 'Pilih dusun dulu'
+      : localRwOptions.value.length
+        ? `${localRwOptions.value.length} RW di dusun ini`
+        : 'Belum ada RW di dusun ini',
+  },
+  {
+    label: 'RT',
+    status: !form.rwId ? 'waiting' : localRtOptions.value.length ? 'ready' : 'missing',
+    text: !form.rwId
+      ? 'Pilih RW dulu'
+      : localRtOptions.value.length
+        ? `${localRtOptions.value.length} RT di RW ini`
+        : 'Belum ada RT di RW ini',
+  },
+]);
+
+const hasMissingServiceData = computed(() => serviceReadinessItems.value.some((item) => item.status === 'missing'));
+
 const getDefaultServiceVillageId = () => {
   const matchedIds = matchedLocalVillageIds.value;
   if (matchedIds.length === 1) return matchedIds[0];
@@ -537,7 +576,7 @@ const save = async () => {
 
   ensureLocalServiceDefaults(true);
   if (!form.villageId || !form.hamletId || !form.rwId || !form.rtId) {
-    appStore.pushToast('Lengkapi Wilayah Layanan Posyandu: desa, dusun, RW, dan RT dari menu Pengaturan.', 'error');
+    appStore.pushToast('Lengkapi Wilayah Layanan Posyandu. Jika Dusun/RW/RT kosong, buka Pengaturan lalu buat data wilayah lokal terlebih dahulu.', 'error');
     return;
   }
 
@@ -754,6 +793,21 @@ onMounted(async () => {
 
           <div class="card-panel kk-meta-card kk-meta-card--full">
             <h3 class="kk-section-title">Wilayah Layanan Posyandu (Lokal)</h3>
+            <div class="setup-checklist" :data-has-warning="hasMissingServiceData">
+              <div class="setup-checklist-head">
+                <div>
+                  <strong>Status data wilayah lokal</strong>
+                  <small>Jika ada yang kosong, lengkapi dari menu Pengaturan terlebih dahulu.</small>
+                </div>
+                <RouterLink to="/pengaturan" class="app-button" data-variant="secondary">Buka Pengaturan</RouterLink>
+              </div>
+              <div class="setup-checklist-grid">
+                <div v-for="item in serviceReadinessItems" :key="item.label" class="setup-checklist-item" :data-status="item.status">
+                  <strong>{{ item.label }}</strong>
+                  <small>{{ item.text }}</small>
+                </div>
+              </div>
+            </div>
             <div class="kk-fields-grid">
               <AppSelect
                 v-model="form.villageId"
