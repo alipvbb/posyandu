@@ -4,6 +4,7 @@ import AppBadge from '../components/ui/AppBadge.vue';
 import AppButton from '../components/ui/AppButton.vue';
 import AppCard from '../components/ui/AppCard.vue';
 import AppDialog from '../components/ui/AppDialog.vue';
+import AppInfoNote from '../components/ui/AppInfoNote.vue';
 import AppInput from '../components/ui/AppInput.vue';
 import AppLoadingBlock from '../components/ui/AppLoadingBlock.vue';
 import AppSelect from '../components/ui/AppSelect.vue';
@@ -13,6 +14,7 @@ import { toddlersService } from '../services/toddlers.service';
 import { useAppStore } from '../stores/app';
 import { useAuthStore } from '../stores/auth';
 import { useMasterDataStore } from '../stores/master-data';
+import { extractApiErrorMessage } from '../utils/feedback';
 import { formatDate, riskLabel } from '../utils/format';
 
 const appStore = useAppStore();
@@ -59,8 +61,8 @@ const fetchData = async () => {
     });
     items.value = response.data;
     meta.value = response.meta;
-  } catch (_error) {
-    appStore.pushToast('Gagal memuat data balita.', 'error');
+  } catch (error: any) {
+    appStore.pushToast(extractApiErrorMessage(error, 'Gagal memuat data balita.'), 'error');
   } finally {
     loading.value = false;
   }
@@ -93,8 +95,8 @@ const remove = async () => {
     appStore.pushToast('Balita berhasil dihapus.', 'success');
     confirmDeleteId.value = null;
     await fetchData();
-  } catch (_error) {
-    appStore.pushToast('Gagal menghapus balita.', 'error');
+  } catch (error: any) {
+    appStore.pushToast(extractApiErrorMessage(error, 'Gagal menghapus balita.'), 'error');
   }
 };
 
@@ -115,18 +117,23 @@ onMounted(async () => {
     </div>
 
     <AppCard>
+      <AppInfoNote title="Cara pakai pencarian cepat">
+        Kosongkan filter untuk melihat semua balita. Jika memilih dusun, daftar posyandu otomatis dibatasi sesuai dusun tersebut agar data tidak tercampur.
+      </AppInfoNote>
       <div class="toolbar-row filters-grid">
-        <AppInput v-model="filters.search" label="Cari nama / kode / orang tua" />
+        <AppInput v-model="filters.search" label="Cari nama / kode / orang tua" placeholder="Contoh: Bagas / BLT-001 / nama ibu" />
         <AppSelect
           v-model="filters.hamletId"
           label="Dusun"
           :options="masterDataStore.hamlets.map((item) => ({ label: item.name, value: item.id }))"
+          empty-hint="Data dusun belum tersedia. Lengkapi dulu di Pengaturan."
         />
         <AppSelect
           v-model="filters.posyanduId"
           label="Posyandu"
           :disabled="!filters.hamletId"
           :options="filteredPosyandus.map((item) => ({ label: item.name, value: item.id }))"
+          empty-hint="Pilih dusun dulu agar posyandu terkait muncul."
         />
         <AppSelect
           v-model="filters.riskLevel"

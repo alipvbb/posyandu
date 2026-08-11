@@ -5,8 +5,10 @@ import { useAppStore } from '../../stores/app';
 import { familiesService } from '../../services/families.service';
 import AppDialog from '../ui/AppDialog.vue';
 import AppButton from '../ui/AppButton.vue';
+import AppInfoNote from '../ui/AppInfoNote.vue';
 import AppInput from '../ui/AppInput.vue';
 import AppSelect from '../ui/AppSelect.vue';
+import { extractApiErrorMessage } from '../../utils/feedback';
 
 const props = defineProps<{
   initialValue?: Record<string, any> | null;
@@ -383,7 +385,7 @@ const addChildToFamily = async () => {
     addChildDialogOpen.value = false;
     appStore.pushToast('Anak berhasil ditambahkan ke Master KK.', 'success');
   } catch (error: any) {
-    appStore.pushToast(error?.response?.data?.message || 'Gagal menambah anak ke Master KK.', 'error');
+    appStore.pushToast(extractApiErrorMessage(error, 'Gagal menambah anak ke Master KK.'), 'error');
   } finally {
     addChildSaving.value = false;
   }
@@ -392,6 +394,11 @@ const addChildToFamily = async () => {
 const submit = () => {
   if (!props.isEdit && !form.familyMemberId) {
     appStore.pushToast('Pilih anak dari Master KK terlebih dahulu.', 'error');
+    return;
+  }
+
+  if (!form.familyId || !form.fullName || !form.birthDate || !form.gender || !form.hamletId || !form.rwId || !form.rtId || !form.posyanduId) {
+    appStore.pushToast('Lengkapi Master KK, identitas balita, wilayah layanan, RT/RW, dan posyandu sebelum menyimpan.', 'error');
     return;
   }
 
@@ -420,9 +427,19 @@ const submit = () => {
 
 <template>
   <form class="form-grid" @submit.prevent="submit">
+    <AppInfoNote title="Urutan input balita">
+      Pilih Master KK terlebih dahulu, lalu pilih anak usia 0-59 bulan. Dusun, RW, RT, alamat, dan orang tua akan mengikuti data KK agar tidak salah wilayah.
+    </AppInfoNote>
     <div class="grid-cards" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr))">
-      <AppSelect v-model="form.familyId" label="Master KK (wajib)" :options="familyOptions" />
-      <AppSelect v-model="form.familyMemberId" label="Pilih Anak Dari KK (wajib)" :options="childMemberOptions" />
+      <AppSelect v-model="form.familyId" label="Master KK" required :options="familyOptions" empty-hint="Master KK belum ada. Tambahkan dulu di menu Master KK." />
+      <AppSelect
+        v-model="form.familyMemberId"
+        label="Pilih Anak Dari KK"
+        required
+        :disabled="!form.familyId"
+        :options="childMemberOptions"
+        empty-hint="Pilih Master KK dulu. Jika anak belum ada, gunakan tombol Tambah Anak Baru ke KK."
+      />
       <AppButton type="button" variant="secondary" @click="openAddChildDialog">Tambah Anak Baru ke KK</AppButton>
       <AppButton type="button" variant="secondary" @click="applySelectedFamily">Isi otomatis dari KK</AppButton>
       <small class="muted-text" style="margin-top: -2px">
@@ -432,45 +449,54 @@ const submit = () => {
             : 'Belum ada anggota anak usia balita (0-59 bulan) di KK ini. Tambahkan di form ini.'
         }}
       </small>
-      <AppInput v-model="form.fullName" label="Nama lengkap balita" />
-      <AppInput v-model="form.nik" label="NIK" />
-      <AppInput v-model="form.noKk" label="No KK" />
-      <AppInput v-model="form.placeOfBirth" label="Tempat lahir" />
-      <AppInput v-model="form.birthDate" label="Tanggal lahir" type="date" />
+      <AppInput v-model="form.fullName" label="Nama lengkap balita" required />
+      <AppInput v-model="form.nik" label="NIK" hint="Opsional jika belum memiliki NIK." />
+      <AppInput v-model="form.noKk" label="No KK" required disabled />
+      <AppInput v-model="form.placeOfBirth" label="Tempat lahir" required />
+      <AppInput v-model="form.birthDate" label="Tanggal lahir" type="date" required hint="Sistem hanya menerima anak usia 0-59 bulan." />
       <AppSelect
         v-model="form.gender"
         label="Jenis kelamin"
+        required
         :options="[
           { label: 'Laki-laki', value: 'MALE' },
           { label: 'Perempuan', value: 'FEMALE' },
         ]"
       />
-      <AppInput v-model="form.motherName" label="Nama ibu" />
-      <AppInput v-model="form.fatherName" label="Nama ayah" />
+      <AppInput v-model="form.motherName" label="Nama ibu" required />
+      <AppInput v-model="form.fatherName" label="Nama ayah" required />
       <AppSelect
         v-model="form.hamletId"
         label="Dusun"
+        required
         :options="masterDataStore.hamlets.map((item) => ({ label: item.name, value: item.id }))"
+        empty-hint="Dusun belum tersedia. Lengkapi dulu di Pengaturan Wilayah & Posyandu."
       />
       <AppSelect
         v-model="form.rwId"
         label="RW"
+        required
         :disabled="!form.hamletId"
         :options="filteredRws.map((item) => ({ label: item.name, value: item.id }))"
+        empty-hint="Pilih dusun dulu, lalu pilih RW yang terhubung dengan dusun tersebut."
       />
       <AppSelect
         v-model="form.rtId"
         label="RT"
+        required
         :disabled="!form.rwId"
         :options="filteredRts.map((item) => ({ label: item.name, value: item.id }))"
+        empty-hint="Pilih RW dulu, lalu pilih RT yang terhubung dengan RW tersebut."
       />
       <AppSelect
         v-model="form.posyanduId"
         label="Posyandu"
+        required
         :disabled="!form.hamletId"
         :options="filteredPosyandus.map((item) => ({ label: item.name, value: item.id }))"
+        empty-hint="Pilih dusun dulu. Jika kosong, tambahkan Posyandu di menu Pengaturan."
       />
-      <AppInput v-model="form.parentPhone" label="No HP orang tua" />
+      <AppInput v-model="form.parentPhone" label="No HP orang tua" inputmode="tel" hint="Dipakai untuk hubungi orang tua/WhatsApp jika belum hadir." />
       <AppInput v-model="form.photoUrl" label="URL foto (opsional)" />
       <AppSelect
         v-model="form.status"
@@ -498,7 +524,7 @@ const submit = () => {
       <p class="muted-text" style="margin: 0">
         KK: <strong>{{ selectedFamily?.familyNumber || '-' }}</strong> • Kepala KK: <strong>{{ selectedFamily?.headName || '-' }}</strong>
       </p>
-      <AppInput v-model="addChildForm.fullName" label="Nama anak" />
+      <AppInput v-model="addChildForm.fullName" label="Nama anak" required />
       <AppInput v-model="addChildForm.nik" label="NIK anak (opsional)" />
       <AppSelect
         v-model="addChildForm.gender"
@@ -509,7 +535,7 @@ const submit = () => {
         ]"
       />
       <AppInput v-model="addChildForm.placeOfBirth" label="Tempat lahir (opsional)" />
-      <AppInput v-model="addChildForm.birthDate" type="date" label="Tanggal lahir (wajib, 0-59 bulan)" />
+      <AppInput v-model="addChildForm.birthDate" type="date" label="Tanggal lahir (0-59 bulan)" required />
       <div class="inline-actions">
         <AppButton type="submit" :disabled="addChildSaving">{{ addChildSaving ? 'Menyimpan...' : 'Simpan Anak' }}</AppButton>
         <AppButton type="button" variant="secondary" @click="addChildDialogOpen = false">Batal</AppButton>

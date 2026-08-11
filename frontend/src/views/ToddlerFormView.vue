@@ -6,6 +6,7 @@ import ToddlerForm from '../components/forms/ToddlerForm.vue';
 import { toddlersService } from '../services/toddlers.service';
 import { useAppStore } from '../stores/app';
 import { useMasterDataStore } from '../stores/master-data';
+import { extractApiErrorMessage } from '../utils/feedback';
 
 const route = useRoute();
 const router = useRouter();
@@ -28,7 +29,7 @@ const submit = async (payload: Record<string, any>) => {
       router.push(`/balita/${created.id}`);
     }
   } catch (error: any) {
-    appStore.pushToast(error.response?.data?.message || 'Gagal menyimpan balita.', 'error');
+    appStore.pushToast(extractApiErrorMessage(error, 'Gagal menyimpan balita.'), 'error');
   } finally {
     loading.value = false;
   }

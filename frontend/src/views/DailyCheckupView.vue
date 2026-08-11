@@ -7,6 +7,7 @@ import AppBadge from '../components/ui/AppBadge.vue';
 import AppButton from '../components/ui/AppButton.vue';
 import AppCard from '../components/ui/AppCard.vue';
 import AppDialog from '../components/ui/AppDialog.vue';
+import AppInfoNote from '../components/ui/AppInfoNote.vue';
 import AppInput from '../components/ui/AppInput.vue';
 import AppLoadingBlock from '../components/ui/AppLoadingBlock.vue';
 import CheckupForm from '../components/forms/CheckupForm.vue';
@@ -15,6 +16,7 @@ import { toddlersService } from '../services/toddlers.service';
 import { useAppStore } from '../stores/app';
 import { useAuthStore } from '../stores/auth';
 import { useMasterDataStore } from '../stores/master-data';
+import { extractApiErrorMessage } from '../utils/feedback';
 import { formatDate, riskLabel } from '../utils/format';
 
 const appStore = useAppStore();
@@ -107,7 +109,7 @@ const loadOverview = async () => {
   try {
     overview.value = await toddlersService.monthlyCheckups(selectedMonth.value);
   } catch (error: any) {
-    appStore.pushToast(error?.response?.data?.message || 'Gagal memuat data pemeriksaan bulanan.', 'error');
+    appStore.pushToast(extractApiErrorMessage(error, 'Gagal memuat data pemeriksaan bulanan.'), 'error');
   } finally {
     loading.value = false;
   }
@@ -169,7 +171,7 @@ const openCheckupPopupWithToddler = async (toddlerId: number | string) => {
     selectedToddler.value = await toddlersService.detail(toddlerId);
     showCheckupDialog.value = true;
   } catch (_error) {
-    appStore.pushToast('Gagal memuat detail balita.', 'error');
+    appStore.pushToast('Gagal memuat detail balita. Pastikan data balita masih aktif dan akses user sesuai desa.', 'error');
   }
 };
 
@@ -202,7 +204,7 @@ const handleScan = async (value: string, source: 'camera' | 'manual' = 'camera')
     await openCheckupPopupWithToddler(result.toddlerId);
     appStore.pushToast('QR dikenali, form pemeriksaan dibuka.', 'success');
   } catch (error: any) {
-    appStore.pushToast(error?.response?.data?.message || 'QR tidak dikenali.', 'error');
+    appStore.pushToast(extractApiErrorMessage(error, 'QR tidak dikenali. Pastikan QR berasal dari kartu posyandu aplikasi ini.'), 'error');
   } finally {
     resolvingScan.value = false;
   }
@@ -229,7 +231,7 @@ const submitCheckup = async (payload: Record<string, any>) => {
       await searchToddlers(searchText.value);
     }
   } catch (error: any) {
-    appStore.pushToast(error?.response?.data?.message || 'Gagal menyimpan pemeriksaan.', 'error');
+    appStore.pushToast(extractApiErrorMessage(error, 'Gagal menyimpan pemeriksaan.'), 'error');
   } finally {
     dialogSaving.value = false;
   }
@@ -284,6 +286,9 @@ onMounted(async () => {
             <p class="muted-text">Cukup satu textbox. Cari nama/kode balita, atau scan QR dari ikon di dalam textbox.</p>
           </div>
         </div>
+        <AppInfoNote title="Cara cepat input">
+          Ketik minimal sebagian nama/kode balita lalu pilih saran. Jika memakai kartu posyandu, tekan ikon QR di kanan textbox dan arahkan kamera ke QR.
+        </AppInfoNote>
         <div class="daily-checkup-search">
           <input
             v-model="searchText"
@@ -419,7 +424,9 @@ onMounted(async () => {
 
     <AppDialog :open="showScannerDialog" title="Scan QR Balita" @close="showScannerDialog = false">
       <div class="form-grid">
-        <p class="muted-text" style="margin: 0">Arahkan kamera ke kartu posyandu. Setelah QR terbaca, popup pengisian pemeriksaan otomatis ditampilkan.</p>
+        <AppInfoNote title="Scan QR">
+          Arahkan kamera ke kartu posyandu. Setelah QR terbaca, popup pengisian pemeriksaan otomatis ditampilkan. Jika kamera tidak aktif, beri izin kamera di browser.
+        </AppInfoNote>
         <template v-if="canScanQr">
           <QrScanner
             @scan="handleScan($event, 'camera')"
@@ -430,7 +437,7 @@ onMounted(async () => {
           />
           <p v-if="scannerError" class="muted-text" style="margin: 0">{{ scannerError }}</p>
           <div class="toolbar-row">
-            <AppInput v-model="manualScanValue" label="Input manual QR" placeholder="Tempel nilai QR jika kamera gagal..." />
+            <AppInput v-model="manualScanValue" label="Input manual QR" placeholder="Tempel nilai QR jika kamera gagal..." hint="Gunakan ini hanya jika kamera tidak bisa membaca QR." />
             <AppButton type="button" :disabled="resolvingScan || !manualScanValue.trim()" @click="handleScan(manualScanValue, 'manual')">
               {{ resolvingScan ? 'Memproses...' : 'Proses QR' }}
             </AppButton>

@@ -2,10 +2,12 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppCard from '../components/ui/AppCard.vue';
+import AppInfoNote from '../components/ui/AppInfoNote.vue';
 import CheckupForm from '../components/forms/CheckupForm.vue';
 import { toddlersService } from '../services/toddlers.service';
 import { useAppStore } from '../stores/app';
 import { useMasterDataStore } from '../stores/master-data';
+import { extractApiErrorMessage } from '../utils/feedback';
 
 const route = useRoute();
 const router = useRouter();
@@ -28,7 +30,7 @@ const submit = async (payload: Record<string, any>) => {
     }
     router.push(`/balita/${route.params.id}`);
   } catch (error: any) {
-    appStore.pushToast(error.response?.data?.message || 'Gagal menyimpan pemeriksaan.', 'error');
+    appStore.pushToast(extractApiErrorMessage(error, 'Gagal menyimpan pemeriksaan.'), 'error');
   } finally {
     loading.value = false;
   }
@@ -54,7 +56,7 @@ onMounted(async () => {
       };
     }
   } catch (error: any) {
-    appStore.pushToast(error.response?.data?.message || 'Gagal memuat form pemeriksaan.', 'error');
+    appStore.pushToast(extractApiErrorMessage(error, 'Gagal memuat form pemeriksaan.'), 'error');
   }
 });
 </script>
@@ -71,6 +73,9 @@ onMounted(async () => {
     </div>
 
     <AppCard>
+      <AppInfoNote :title="isEditMode ? 'Edit riwayat pemeriksaan' : 'Input pemeriksaan baru'" style="margin-bottom: 12px">
+        Data pemeriksaan disimpan sebagai histori. Isi minimal tanggal, berat badan, tinggi/panjang badan, posyandu, dan nama petugas.
+      </AppInfoNote>
       <CheckupForm
         :toddler-id="String(route.params.id)"
         :loading="loading"

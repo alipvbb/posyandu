@@ -416,6 +416,12 @@ textarea {
   color: var(--muted);
 }
 
+.required-mark {
+  color: var(--danger);
+  font-size: 0.9em;
+  margin-left: 3px;
+}
+
 .form-input,
 textarea.form-input {
   width: 100%;
@@ -427,6 +433,59 @@ textarea.form-input {
   color: var(--text);
   font-size: var(--density-control-font-size);
   min-width: 0;
+}
+
+.form-field[data-invalid='true'] .form-input {
+  border-color: rgba(214, 109, 99, 0.76);
+  background: #fffafa;
+}
+
+.field-hint,
+.field-error {
+  display: block;
+  margin-top: -2px;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.field-hint {
+  color: var(--muted);
+}
+
+.field-error {
+  color: #b94f47;
+  font-weight: 700;
+}
+
+.info-note {
+  border: 1px solid #d8e8e1;
+  border-radius: 16px;
+  padding: 10px 12px;
+  background: #f6fbf8;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.info-note strong {
+  display: block;
+  color: var(--primary-deep);
+  margin-bottom: 2px;
+}
+
+.info-note p {
+  margin: 0;
+}
+
+.info-note[data-tone='warning'] {
+  border-color: #f2ddb9;
+  background: #fff8eb;
+  color: #8c6121;
+}
+
+.info-note[data-tone='success'] {
+  border-color: #cde8da;
+  background: #effaf4;
+  color: #1f7a57;
 }
 
 .form-input:focus,

@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { onMounted, reactive, watch } from 'vue';
 import { useMasterDataStore } from '../../stores/master-data';
+import { useAppStore } from '../../stores/app';
 import { clearCheckupDraft, getCheckupDraft, saveCheckupDraft } from '../../utils/offline-drafts';
 import AppButton from '../ui/AppButton.vue';
+import AppInfoNote from '../ui/AppInfoNote.vue';
 import AppInput from '../ui/AppInput.vue';
 import AppSelect from '../ui/AppSelect.vue';
 
@@ -17,6 +19,7 @@ const emit = defineEmits<{
 }>();
 
 const masterDataStore = useMasterDataStore();
+const appStore = useAppStore();
 
 const form = reactive({
   examDate: new Date().toISOString().slice(0, 10),
@@ -34,14 +37,33 @@ const form = reactive({
 });
 
 const submit = async () => {
+  const weight = Number(form.weight);
+  const height = Number(form.height);
+  const posyanduId = Number(form.posyanduId);
+
+  if (!form.examDate || !form.weight || !form.height || !form.officerName || !posyanduId) {
+    appStore.pushToast('Lengkapi tanggal, berat badan, tinggi/panjang badan, petugas, dan lokasi posyandu dulu.', 'error');
+    return;
+  }
+
+  if (!Number.isFinite(weight) || weight <= 0 || weight > 40) {
+    appStore.pushToast('Berat badan tidak valid. Isi dalam kilogram, contoh 8.5.', 'error');
+    return;
+  }
+
+  if (!Number.isFinite(height) || height < 35 || height > 130) {
+    appStore.pushToast('Tinggi/panjang badan tidak valid. Isi dalam cm, contoh 74.5.', 'error');
+    return;
+  }
+
   emit('submit', {
     examDate: form.examDate,
-    weight: Number(form.weight),
-    height: Number(form.height),
+    weight,
+    height,
     headCircumference: form.headCircumference ? Number(form.headCircumference) : null,
     muac: form.muac ? Number(form.muac) : null,
     officerName: form.officerName,
-    posyanduId: Number(form.posyanduId),
+    posyanduId,
     immunizationNote: form.immunizationNote || null,
     vitaminPmtNote: form.vitaminPmtNote || null,
     complaintNote: form.complaintNote || null,
@@ -94,17 +116,22 @@ onMounted(async () => {
 
 <template>
   <form class="form-grid" @submit.prevent="submit">
+    <AppInfoNote title="Sebelum simpan pemeriksaan">
+      Isi minimal tanggal pemeriksaan, berat badan, tinggi/panjang badan, nama petugas, dan lokasi posyandu. Data ini akan menjadi histori, bukan menimpa pemeriksaan lama.
+    </AppInfoNote>
     <div class="grid-cards" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr))">
-      <AppInput v-model="form.examDate" type="date" label="Tanggal pemeriksaan" />
-      <AppInput v-model="form.weight" type="number" label="Berat badan (kg)" />
-      <AppInput v-model="form.height" type="number" label="Tinggi / panjang badan (cm)" />
-      <AppInput v-model="form.headCircumference" type="number" label="Lingkar kepala (cm)" />
-      <AppInput v-model="form.muac" type="number" label="Lingkar lengan atas (cm)" />
-      <AppInput v-model="form.officerName" label="Nama petugas" />
+      <AppInput v-model="form.examDate" type="date" label="Tanggal pemeriksaan" required />
+      <AppInput v-model="form.weight" type="number" label="Berat badan (kg)" required inputmode="decimal" min="0.1" step="0.01" hint="Gunakan kg, contoh 8.5" />
+      <AppInput v-model="form.height" type="number" label="Tinggi / panjang badan (cm)" required inputmode="decimal" min="35" step="0.1" hint="Gunakan cm, contoh 74.5" />
+      <AppInput v-model="form.headCircumference" type="number" label="Lingkar kepala (cm)" inputmode="decimal" step="0.1" hint="Opsional" />
+      <AppInput v-model="form.muac" type="number" label="Lingkar lengan atas (cm)" inputmode="decimal" step="0.1" hint="Opsional" />
+      <AppInput v-model="form.officerName" label="Nama petugas" required />
       <AppSelect
         v-model="form.posyanduId"
         label="Lokasi posyandu"
+        required
         :options="masterDataStore.posyandus.map((item) => ({ label: item.name, value: item.id }))"
+        empty-hint="Data posyandu belum tersedia. Lengkapi dulu di menu Pengaturan."
       />
     </div>
 

@@ -4,11 +4,13 @@ import { useRoute, useRouter } from 'vue-router';
 import AppButton from '../components/ui/AppButton.vue';
 import AppCard from '../components/ui/AppCard.vue';
 import AppDialog from '../components/ui/AppDialog.vue';
+import AppInfoNote from '../components/ui/AppInfoNote.vue';
 import AppInput from '../components/ui/AppInput.vue';
 import { APP_NAME } from '../app/branding';
 import { authService } from '../services/auth.service';
 import { useAppStore } from '../stores/app';
 import { useAuthStore } from '../stores/auth';
+import { extractApiErrorMessage } from '../utils/feedback';
 
 const authStore = useAuthStore();
 const appStore = useAppStore();
@@ -64,12 +66,17 @@ const startVerifyCooldown = (seconds: number) => {
 };
 
 const submit = async () => {
+  if (!form.email.trim() || !form.password) {
+    appStore.pushToast('Isi email dan password terlebih dahulu.', 'error');
+    return;
+  }
+
   try {
     await authStore.login(form);
     appStore.pushToast('Login berhasil.', 'success');
     router.push(String(route.query.redirect || '/'));
   } catch (error: any) {
-    const message = error.response?.data?.message || 'Login gagal.';
+    const message = extractApiErrorMessage(error, 'Login gagal. Periksa email dan password.');
     appStore.pushToast(message, 'error');
     if (String(message).toLowerCase().includes('belum aktif')) {
       openVerifyEmail();
@@ -119,7 +126,7 @@ const resendVerificationCode = async () => {
     startVerifyCooldown(result.cooldownSeconds || 60);
     appStore.pushToast('Kode verifikasi baru sudah dikirim ke email.', 'success');
   } catch (error: any) {
-    appStore.pushToast(error?.response?.data?.message || 'Gagal mengirim ulang kode verifikasi.', 'error');
+    appStore.pushToast(extractApiErrorMessage(error, 'Gagal mengirim ulang kode verifikasi.'), 'error');
   } finally {
     verifyLoading.resend = false;
   }
@@ -141,7 +148,7 @@ const submitVerifyEmail = async () => {
     closeVerifyEmail();
     router.push(String(route.query.redirect || '/'));
   } catch (error: any) {
-    appStore.pushToast(error?.response?.data?.message || 'Verifikasi gagal.', 'error');
+    appStore.pushToast(extractApiErrorMessage(error, 'Verifikasi gagal. Pastikan kode OTP benar dan masih berlaku.'), 'error');
   } finally {
     verifyLoading.verify = false;
   }
@@ -161,7 +168,7 @@ const sendForgotCode = async () => {
       appStore.pushToast(`Kode debug: ${result.debugCode}`, 'info');
     }
   } catch (error: any) {
-    appStore.pushToast(error?.response?.data?.message || 'Gagal mengirim kode reset password.', 'error');
+    appStore.pushToast(extractApiErrorMessage(error, 'Gagal mengirim kode reset password.'), 'error');
   } finally {
     forgotLoading.request = false;
   }
@@ -170,6 +177,14 @@ const sendForgotCode = async () => {
 const submitResetPassword = async () => {
   if (!forgotForm.code || !forgotForm.newPassword || !forgotForm.confirmPassword) {
     appStore.pushToast('Lengkapi kode dan password baru.', 'error');
+    return;
+  }
+  if (forgotForm.newPassword.length < 8) {
+    appStore.pushToast('Password baru minimal 8 karakter.', 'error');
+    return;
+  }
+  if (forgotForm.newPassword !== forgotForm.confirmPassword) {
+    appStore.pushToast('Konfirmasi password baru tidak sama.', 'error');
     return;
   }
   try {
@@ -183,7 +198,7 @@ const submitResetPassword = async () => {
     appStore.pushToast(result.message || 'Password berhasil direset.', 'success');
     forgotDialogOpen.open = false;
   } catch (error: any) {
-    appStore.pushToast(error?.response?.data?.message || 'Reset password gagal.', 'error');
+    appStore.pushToast(extractApiErrorMessage(error, 'Reset password gagal. Periksa kode dan coba lagi.'), 'error');
   } finally {
     forgotLoading.reset = false;
   }
@@ -211,8 +226,11 @@ onBeforeUnmount(() => {
             <h2 style="margin: 0 0 6px">Masuk ke aplikasi</h2>
             <p class="muted-text" style="margin: 0">Gunakan akun petugas, kader, admin, atau kepala desa.</p>
           </div>
-          <AppInput v-model="form.email" label="Email" type="email" />
-          <AppInput v-model="form.password" label="Password" type="password" />
+          <AppInfoNote title="Belum punya akun?">
+            Admin desa bisa daftar terlebih dahulu. Petugas, kader, dan kepala desa dibuat oleh Admin Desa dari menu Manajemen User.
+          </AppInfoNote>
+          <AppInput v-model="form.email" label="Email" type="email" required hint="Masukkan email yang sudah terdaftar dan terverifikasi." />
+          <AppInput v-model="form.password" label="Password" type="password" required hint="Jika lupa, gunakan tombol Lupa password di bawah." />
           <div class="inline-actions" style="justify-content: flex-end">
             <button class="ghost-button" type="button" @click="openForgotPassword">Lupa password?</button>
           </div>
@@ -230,7 +248,10 @@ onBeforeUnmount(() => {
         <p class="muted-text" style="margin: 0">
           Masukkan email akun Anda. Kami akan kirim kode verifikasi reset password.
         </p>
-        <AppInput v-model="forgotForm.email" label="Email akun" type="email" />
+        <AppInfoNote title="Reset password">
+          Kode reset dikirim ke email akun. Jika tidak masuk, cek Spam/Promosi atau pastikan email sudah benar.
+        </AppInfoNote>
+        <AppInput v-model="forgotForm.email" label="Email akun" type="email" required hint="Email user yang ingin direset passwordnya." />
         <div class="inline-actions">
           <AppButton type="submit" :disabled="forgotLoading.request">
             {{ forgotLoading.request ? 'Mengirim...' : 'Kirim Kode' }}
@@ -243,10 +264,10 @@ onBeforeUnmount(() => {
         <p class="muted-text" style="margin: 0">
           Kode verifikasi sudah dikirim ke email. Isi kode dan password baru Anda.
         </p>
-        <AppInput v-model="forgotForm.email" label="Email akun" type="email" />
-        <AppInput v-model="forgotForm.code" label="Kode verifikasi" />
-        <AppInput v-model="forgotForm.newPassword" label="Password baru" type="password" />
-        <AppInput v-model="forgotForm.confirmPassword" label="Konfirmasi password baru" type="password" />
+        <AppInput v-model="forgotForm.email" label="Email akun" type="email" required />
+        <AppInput v-model="forgotForm.code" label="Kode verifikasi" required hint="Masukkan kode dari email tanpa spasi." />
+        <AppInput v-model="forgotForm.newPassword" label="Password baru" type="password" required hint="Minimal 8 karakter." />
+        <AppInput v-model="forgotForm.confirmPassword" label="Konfirmasi password baru" type="password" required />
         <div class="inline-actions">
           <AppButton type="submit" :disabled="forgotLoading.reset">
             {{ forgotLoading.reset ? 'Memproses...' : 'Reset Password' }}
@@ -261,8 +282,11 @@ onBeforeUnmount(() => {
         <p class="muted-text" style="margin: 0">
           Jika akun sudah terdaftar tetapi belum aktif, kirim ulang OTP lalu masukkan kode verifikasi dari email.
         </p>
-        <AppInput v-model="verifyForm.email" label="Email akun" type="email" />
-        <AppInput v-model="verifyForm.code" label="Kode OTP / Verifikasi" />
+        <AppInfoNote title="Akun belum aktif">
+          Klik Kirim Ulang OTP jika kode lama hilang. Setelah verifikasi berhasil, akun bisa langsung dipakai login.
+        </AppInfoNote>
+        <AppInput v-model="verifyForm.email" label="Email akun" type="email" required />
+        <AppInput v-model="verifyForm.code" label="Kode OTP / Verifikasi" required hint="Kode berlaku terbatas, gunakan kode terbaru dari email." />
         <p v-if="verifyResult.expiresInMinutes" class="muted-text" style="margin: 0">
           Kode baru berlaku {{ verifyResult.expiresInMinutes }} menit. Cek Inbox atau Spam.
         </p>

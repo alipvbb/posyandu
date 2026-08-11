@@ -3,11 +3,13 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import AppButton from '../components/ui/AppButton.vue';
 import AppCard from '../components/ui/AppCard.vue';
 import AppDialog from '../components/ui/AppDialog.vue';
+import AppInfoNote from '../components/ui/AppInfoNote.vue';
 import AppInput from '../components/ui/AppInput.vue';
 import AppSelect from '../components/ui/AppSelect.vue';
 import DataTable from '../components/DataTable.vue';
 import { api } from '../services/api';
 import { useAppStore } from '../stores/app';
+import { extractApiErrorMessage } from '../utils/feedback';
 
 const appStore = useAppStore();
 const users = ref<any[]>([]);
@@ -15,6 +17,7 @@ const roles = ref<any[]>([]);
 const permissions = ref<any[]>([]);
 const open = ref(false);
 const editingId = ref<number | null>(null);
+const saving = ref(false);
 
 const form = reactive({
   name: '',
@@ -93,7 +96,33 @@ const setCustomPermission = (permissionCode: string, allowed: boolean) => {
 const isPermissionChecked = (permissionCode: string) => form.customPermissionCodes.includes(permissionCode);
 
 const save = async () => {
+  if (!form.name.trim() || !form.email.trim()) {
+    appStore.pushToast('Lengkapi nama dan email user terlebih dahulu.', 'error');
+    return;
+  }
+
+  if (!editingId.value && !form.password) {
+    appStore.pushToast('Password awal wajib diisi untuk user baru.', 'error');
+    return;
+  }
+
+  if (form.password && form.password.length < 8) {
+    appStore.pushToast('Password minimal 8 karakter.', 'error');
+    return;
+  }
+
+  if (!form.roleCodes.length) {
+    appStore.pushToast('Pilih minimal satu role agar user punya akses awal.', 'error');
+    return;
+  }
+
+  if (form.useCustomPermissions && !form.customPermissionCodes.length) {
+    appStore.pushToast('Hak akses kustom aktif, pilih minimal satu halaman yang boleh diakses.', 'error');
+    return;
+  }
+
   try {
+    saving.value = true;
     const payload = {
       ...form,
       roleCodes: form.roleCodes,
@@ -110,7 +139,9 @@ const save = async () => {
     reset();
     await load();
   } catch (error: any) {
-    appStore.pushToast(error?.response?.data?.message || 'Gagal menyimpan user.', 'error');
+    appStore.pushToast(extractApiErrorMessage(error, 'Gagal menyimpan user.'), 'error');
+  } finally {
+    saving.value = false;
   }
 };
 
@@ -127,6 +158,11 @@ const editUser = (user: any) => {
   open.value = true;
 };
 
+const openCreate = () => {
+  reset();
+  open.value = true;
+};
+
 onMounted(load);
 </script>
 
@@ -139,7 +175,7 @@ onMounted(load);
           Tambah, edit, aktif/nonaktifkan user, assign role, dan atur hak akses per user.
         </p>
       </div>
-      <AppButton @click="open = true">Tambah user</AppButton>
+      <AppButton @click="openCreate">Tambah user</AppButton>
     </div>
 
     <AppCard>
@@ -169,20 +205,30 @@ onMounted(load);
 
     <AppDialog :open="open" :title="editingId ? 'Edit User' : 'Tambah User'" @close="open = false">
       <form class="form-grid" @submit.prevent="save">
-        <AppInput v-model="form.name" label="Nama" />
-        <AppInput v-model="form.email" label="Email" type="email" />
-        <AppInput v-model="form.password" label="Password" type="password" />
-        <AppInput v-model="form.phone" label="No HP" />
+        <AppInfoNote title="Cara memberi akses">
+          Pilih role untuk akses standar. Jika satu user butuh akses khusus, aktifkan hak akses kustom lalu centang halaman yang boleh dibuka.
+        </AppInfoNote>
+        <AppInput v-model="form.name" label="Nama" required hint="Nama petugas/kader/kepala desa yang akan memakai aplikasi." />
+        <AppInput v-model="form.email" label="Email" type="email" required hint="Email ini dipakai untuk login user." />
+        <AppInput
+          v-model="form.password"
+          label="Password"
+          type="password"
+          :required="!editingId"
+          :hint="editingId ? 'Isi jika ingin mengganti password. Kosongkan jika tidak diganti.' : 'Password awal minimal 8 karakter.'"
+        />
+        <AppInput v-model="form.phone" label="No HP" inputmode="tel" hint="Opsional. Bisa dipakai petugas untuk kontak cepat." />
         <AppSelect
           v-model="form.status"
           label="Status"
+          required
           :options="[
             { label: 'Aktif', value: 'ACTIVE' },
             { label: 'Nonaktif', value: 'INACTIVE' },
           ]"
         />
         <label class="form-field">
-          <span>Role</span>
+          <span>Role <b class="required-mark">*</b></span>
           <select v-model="form.roleCodes" class="form-input" multiple size="5">
             <option v-for="item in roles" :key="item.code" :value="item.code">{{ item.name }}</option>
           </select>
@@ -235,7 +281,7 @@ onMounted(load);
         </div>
 
         <div class="inline-actions">
-          <AppButton type="submit">Simpan</AppButton>
+          <AppButton type="submit" :disabled="saving">{{ saving ? 'Menyimpan...' : 'Simpan' }}</AppButton>
           <AppButton variant="secondary" type="button" @click="open = false">Batal</AppButton>
         </div>
       </form>

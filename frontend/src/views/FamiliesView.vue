@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import AppButton from '../components/ui/AppButton.vue';
 import AppCard from '../components/ui/AppCard.vue';
 import AppDialog from '../components/ui/AppDialog.vue';
+import AppInfoNote from '../components/ui/AppInfoNote.vue';
 import AppInput from '../components/ui/AppInput.vue';
 import AppLoadingBlock from '../components/ui/AppLoadingBlock.vue';
 import AppSelect from '../components/ui/AppSelect.vue';
@@ -13,23 +14,11 @@ import { masterDataService } from '../services/master-data.service';
 import { useAppStore } from '../stores/app';
 import { useAuthStore } from '../stores/auth';
 import { useMasterDataStore } from '../stores/master-data';
+import { extractApiErrorMessage } from '../utils/feedback';
 
 const appStore = useAppStore();
 const authStore = useAuthStore();
 const masterDataStore = useMasterDataStore();
-
-const extractApiErrorMessage = (error: any, fallback: string) => {
-  const details = error?.response?.data?.details;
-  const fieldErrors = details?.fieldErrors;
-  if (fieldErrors && typeof fieldErrors === 'object') {
-    const firstField = Object.keys(fieldErrors)[0];
-    const firstMessages = firstField ? fieldErrors[firstField] : null;
-    if (Array.isArray(firstMessages) && firstMessages.length) {
-      return `${firstField}: ${firstMessages[0]}`;
-    }
-  }
-  return error?.response?.data?.message || fallback;
-};
 
 const loading = ref(true);
 const items = ref<any[]>([]);
@@ -525,7 +514,11 @@ const editItem = async (item: any) => {
 
 const save = async () => {
   if (!form.familyNumber || !form.headName || !form.address) {
-    appStore.pushToast('Lengkapi No KK, kepala keluarga, dan alamat.', 'error');
+    appStore.pushToast('Lengkapi Identitas KK: No KK, nama kepala keluarga, dan alamat lengkap.', 'error');
+    return;
+  }
+  if (String(form.familyNumber).replace(/\D/g, '').length < 8) {
+    appStore.pushToast('No KK terlalu pendek. Pastikan mengisi nomor KK sesuai dokumen keluarga.', 'error');
     return;
   }
   if (
@@ -534,7 +527,7 @@ const save = async () => {
     !form.domicileDistrictCode ||
     !form.domicileVillageCode
   ) {
-    appStore.pushToast('Lengkapi wilayah domisili nasional: provinsi, kabupaten/kota, kecamatan, dan desa/kelurahan.', 'error');
+    appStore.pushToast('Lengkapi Wilayah Domisili Indonesia: provinsi, kabupaten/kota, kecamatan, dan desa/kelurahan.', 'error');
     return;
   }
   if (!form.members.some((member) => member.fullName.trim())) {
@@ -544,7 +537,7 @@ const save = async () => {
 
   ensureLocalServiceDefaults(true);
   if (!form.villageId || !form.hamletId || !form.rwId || !form.rtId) {
-    appStore.pushToast('Wilayah layanan posyandu lokal belum tersedia. Hubungi admin sistem.', 'error');
+    appStore.pushToast('Lengkapi Wilayah Layanan Posyandu: desa, dusun, RW, dan RT dari menu Pengaturan.', 'error');
     return;
   }
 
@@ -705,38 +698,47 @@ onMounted(async () => {
 
     <AppDialog :open="openForm" :title="editingId ? 'Edit Master KK' : 'Tambah Master KK'" @close="openForm = false">
       <form class="form-grid kk-dialog-form" @submit.prevent="save">
+        <AppInfoNote title="Yang perlu disiapkan sebelum simpan KK">
+          Lengkapi identitas KK, domisili nasional, wilayah layanan posyandu lokal, dan minimal 1 anggota keluarga. Data RT/RW lokal hanya bisa dipilih dari menu Pengaturan.
+        </AppInfoNote>
         <div class="kk-meta-grid">
           <div class="card-panel kk-meta-card">
             <h3 class="kk-section-title">Identitas KK</h3>
             <div class="kk-fields-grid">
-              <AppInput v-model="form.familyNumber" label="No KK" />
-              <AppInput v-model="form.headName" label="Nama Kepala Keluarga" />
-              <AppInput v-model="form.phone" label="No HP Keluarga" />
-              <AppInput v-model="form.address" label="Alamat Lengkap" />
+              <AppInput v-model="form.familyNumber" label="No KK" required inputmode="numeric" hint="Isi sesuai dokumen KK." />
+              <AppInput v-model="form.headName" label="Nama Kepala Keluarga" required />
+              <AppInput v-model="form.phone" label="No HP Keluarga" inputmode="tel" hint="Dipakai untuk menghubungi orang tua/wali." />
+              <AppInput v-model="form.address" label="Alamat Lengkap" required />
             </div>
           </div>
 
           <div class="card-panel kk-meta-card">
             <h3 class="kk-section-title">Wilayah Domisili (Indonesia)</h3>
             <div class="kk-fields-grid">
-              <AppSelect v-model="form.domicileProvinceCode" label="Provinsi" :options="domicileProvinceOptions" />
+              <AppSelect v-model="form.domicileProvinceCode" label="Provinsi" required :options="domicileProvinceOptions" empty-hint="Daftar provinsi belum termuat. Cek koneksi lalu buka ulang form." />
               <AppSelect
                 v-model="form.domicileRegencyCode"
                 label="Kabupaten / Kota"
+                required
                 :options="domicileRegencyOptions"
                 :disabled="!form.domicileProvinceCode"
+                empty-hint="Pilih provinsi terlebih dahulu."
               />
               <AppSelect
                 v-model="form.domicileDistrictCode"
                 label="Kecamatan"
+                required
                 :options="domicileDistrictOptions"
                 :disabled="!form.domicileRegencyCode"
+                empty-hint="Pilih kabupaten/kota terlebih dahulu."
               />
               <AppSelect
                 v-model="form.domicileVillageCode"
                 label="Desa / Kelurahan"
+                required
                 :options="domicileVillageOptions"
                 :disabled="!form.domicileDistrictCode"
+                empty-hint="Pilih kecamatan terlebih dahulu."
               />
               <AppInput v-model="form.domicileRw" label="RW (Domisili)" />
               <AppInput v-model="form.domicileRt" label="RT (Domisili)" />
@@ -756,26 +758,33 @@ onMounted(async () => {
               <AppSelect
                 v-model="form.villageId"
                 label="Desa (Layanan)"
+                required
                 :options="localVillageOptions"
                 :disabled="Boolean(actorVillageId)"
               />
               <AppSelect
                 v-model="form.hamletId"
                 label="Dusun"
+                required
                 :options="localHamletOptions"
                 :disabled="!form.villageId"
+                empty-hint="Dusun belum tersedia. Tambahkan dulu di Pengaturan Wilayah & Posyandu."
               />
               <AppSelect
                 v-model="form.rwId"
                 label="RW"
+                required
                 :options="localRwOptions"
                 :disabled="!form.hamletId"
+                empty-hint="Pilih dusun dulu atau tambahkan RW pada dusun tersebut di Pengaturan."
               />
               <AppSelect
                 v-model="form.rtId"
                 label="RT"
+                required
                 :options="localRtOptions"
                 :disabled="!form.rwId"
+                empty-hint="Pilih RW dulu atau tambahkan RT pada RW tersebut di Pengaturan."
               />
             </div>
             <small class="muted-text">

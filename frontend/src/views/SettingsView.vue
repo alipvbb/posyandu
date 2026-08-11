@@ -3,12 +3,14 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import AppButton from '../components/ui/AppButton.vue';
 import AppCard from '../components/ui/AppCard.vue';
 import AppDialog from '../components/ui/AppDialog.vue';
+import AppInfoNote from '../components/ui/AppInfoNote.vue';
 import AppInput from '../components/ui/AppInput.vue';
 import AppLoadingBlock from '../components/ui/AppLoadingBlock.vue';
 import AppSelect from '../components/ui/AppSelect.vue';
 import DataTable from '../components/DataTable.vue';
 import { regionAdminService } from '../services/region-admin.service';
 import { useAppStore } from '../stores/app';
+import { extractApiErrorMessage } from '../utils/feedback';
 
 const appStore = useAppStore();
 const loading = ref(true);
@@ -56,8 +58,6 @@ const rwOptions = computed(() =>
     value: String(item.id),
   })),
 );
-
-const extractApiErrorMessage = (error: any, fallback: string) => error?.response?.data?.message || fallback;
 
 const loadAll = async () => {
   loading.value = true;
@@ -296,6 +296,9 @@ onMounted(loadAll);
       <p class="muted-text" style="margin: 8px 0 0">
         Data Dusun, RW, RT, dan Posyandu dikelola langsung oleh Admin Desa. Data ini akan dipakai pada Master KK, Balita, dan Pemeriksaan.
       </p>
+      <AppInfoNote title="Urutan aman pengisian" style="margin-top: 10px">
+        Buat Dusun dulu, lalu RW di dalam Dusun, RT di dalam RW, kemudian Posyandu. Data yang dibuat di sini otomatis muncul di combobox Master KK dan Data Balita.
+      </AppInfoNote>
     </AppCard>
 
     <AppCard v-if="loading">
@@ -382,7 +385,7 @@ onMounted(loadAll);
 
     <AppDialog :open="hamletDialogOpen" :title="hamletForm.id ? 'Edit Dusun' : 'Tambah Dusun'" @close="hamletDialogOpen = false">
       <form class="form-grid" @submit.prevent="saveHamlet">
-        <AppInput v-model="hamletForm.name" label="Nama Dusun" />
+        <AppInput v-model="hamletForm.name" label="Nama Dusun" required hint="Contoh: Dusun Krajan, Dusun Brangkal Barat." />
         <div class="inline-actions">
           <AppButton type="submit">Simpan</AppButton>
           <AppButton type="button" variant="secondary" @click="hamletDialogOpen = false">Batal</AppButton>
@@ -392,8 +395,11 @@ onMounted(loadAll);
 
     <AppDialog :open="rwDialogOpen" :title="rwForm.id ? 'Edit RW' : 'Tambah RW'" @close="rwDialogOpen = false">
       <form class="form-grid" @submit.prevent="saveRw">
-        <AppSelect v-model="rwForm.hamletId" label="Dusun" :options="hamletOptions" />
-        <AppInput v-model="rwForm.name" label="Nama RW" />
+        <AppInfoNote v-if="!hamletOptions.length" title="Dusun belum tersedia" tone="warning">
+          Tambahkan data Dusun terlebih dahulu sebelum membuat RW.
+        </AppInfoNote>
+        <AppSelect v-model="rwForm.hamletId" label="Dusun" :options="hamletOptions" required empty-hint="Belum ada Dusun. Buat Dusun dahulu." />
+        <AppInput v-model="rwForm.name" label="Nama RW" required hint="Gunakan format singkat, contoh: RW 01." />
         <div class="inline-actions">
           <AppButton type="submit">Simpan</AppButton>
           <AppButton type="button" variant="secondary" @click="rwDialogOpen = false">Batal</AppButton>
@@ -403,8 +409,11 @@ onMounted(loadAll);
 
     <AppDialog :open="rtDialogOpen" :title="rtForm.id ? 'Edit RT' : 'Tambah RT'" @close="rtDialogOpen = false">
       <form class="form-grid" @submit.prevent="saveRt">
-        <AppSelect v-model="rtForm.rwId" label="RW" :options="rwOptions" />
-        <AppInput v-model="rtForm.name" label="Nama RT" />
+        <AppInfoNote v-if="!rwOptions.length" title="RW belum tersedia" tone="warning">
+          Tambahkan RW terlebih dahulu. RT harus punya induk RW agar laporan bisa difilter per wilayah.
+        </AppInfoNote>
+        <AppSelect v-model="rtForm.rwId" label="RW" :options="rwOptions" required empty-hint="Belum ada RW. Buat RW dahulu." />
+        <AppInput v-model="rtForm.name" label="Nama RT" required hint="Gunakan format singkat, contoh: RT 03." />
         <div class="inline-actions">
           <AppButton type="submit">Simpan</AppButton>
           <AppButton type="button" variant="secondary" @click="rtDialogOpen = false">Batal</AppButton>
@@ -414,11 +423,14 @@ onMounted(loadAll);
 
     <AppDialog :open="posyanduDialogOpen" :title="posyanduForm.id ? 'Edit Posyandu' : 'Tambah Posyandu'" @close="posyanduDialogOpen = false">
       <form class="form-grid" @submit.prevent="savePosyandu">
-        <AppSelect v-model="posyanduForm.hamletId" label="Dusun" :options="hamletOptions" />
-        <AppInput v-model="posyanduForm.name" label="Nama Posyandu" />
-        <AppInput v-model="posyanduForm.locationAddress" label="Alamat Lokasi" />
-        <AppInput v-model="posyanduForm.scheduleDay" label="Jadwal" />
-        <AppInput v-model="posyanduForm.contactPhone" label="No Kontak" />
+        <AppInfoNote v-if="!hamletOptions.length" title="Dusun belum tersedia" tone="warning">
+          Posyandu harus ditempatkan pada Dusun. Buat Dusun terlebih dahulu.
+        </AppInfoNote>
+        <AppSelect v-model="posyanduForm.hamletId" label="Dusun" :options="hamletOptions" required empty-hint="Belum ada Dusun. Buat Dusun dahulu." />
+        <AppInput v-model="posyanduForm.name" label="Nama Posyandu" required hint="Contoh: Posyandu Melati." />
+        <AppInput v-model="posyanduForm.locationAddress" label="Alamat Lokasi" hint="Opsional, isi titik/lokasi kegiatan posyandu." />
+        <AppInput v-model="posyanduForm.scheduleDay" label="Jadwal" hint="Opsional, contoh: Minggu ke-2 setiap bulan." />
+        <AppInput v-model="posyanduForm.contactPhone" label="No Kontak" inputmode="tel" hint="Opsional, nomor kader/penanggung jawab." />
         <div class="inline-actions">
           <AppButton type="submit">Simpan</AppButton>
           <AppButton type="button" variant="secondary" @click="posyanduDialogOpen = false">Batal</AppButton>
@@ -427,4 +439,3 @@ onMounted(loadAll);
     </AppDialog>
   </div>
 </template>
-
