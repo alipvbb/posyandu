@@ -27,6 +27,7 @@ const openForm = ref(false);
 const editingId = ref<number | null>(null);
 const confirmDeleteId = ref<number | null>(null);
 const hydratingDomicile = ref(false);
+const saving = ref(false);
 
 const filters = reactive({
   search: '',
@@ -495,8 +496,14 @@ const applyFilters = async () => {
 };
 
 const openCreate = () => {
+  if (saving.value) return;
   resetForm();
   openForm.value = true;
+};
+
+const closeForm = () => {
+  if (saving.value) return;
+  openForm.value = false;
 };
 
 const applyKkTemplate = () => {
@@ -504,6 +511,7 @@ const applyKkTemplate = () => {
 };
 
 const editItem = async (item: any) => {
+  if (saving.value) return;
   editingId.value = item.id;
   form.familyNumber = item.familyNumber || '';
   form.headName = item.headName || '';
@@ -552,6 +560,8 @@ const editItem = async (item: any) => {
 };
 
 const save = async () => {
+  if (saving.value) return;
+
   if (!form.familyNumber || !form.headName || !form.address) {
     appStore.pushToast('Lengkapi Identitas KK: No KK, nama kepala keluarga, dan alamat lengkap.', 'error');
     return;
@@ -625,18 +635,21 @@ const save = async () => {
   };
 
   try {
+    saving.value = true;
     if (editingId.value) {
       await familiesService.update(editingId.value, payload);
     } else {
       await familiesService.create(payload);
     }
     await masterDataStore.fetchAll(true);
-    appStore.pushToast('Master KK berhasil disimpan.', 'success');
+    appStore.pushToast('Master KK berhasil disimpan. Jika lanjut input balita, pilih KK ini di halaman Data Balita.', 'success');
     openForm.value = false;
     resetForm();
     await load();
   } catch (error: any) {
     appStore.pushToast(extractApiErrorMessage(error, 'Gagal menyimpan master KK.'), 'error');
+  } finally {
+    saving.value = false;
   }
 };
 
@@ -735,7 +748,7 @@ onMounted(async () => {
       </div>
     </AppCard>
 
-    <AppDialog :open="openForm" :title="editingId ? 'Edit Master KK' : 'Tambah Master KK'" @close="openForm = false">
+    <AppDialog :open="openForm" :title="editingId ? 'Edit Master KK' : 'Tambah Master KK'" @close="closeForm">
       <form class="form-grid kk-dialog-form" @submit.prevent="save">
         <AppInfoNote title="Yang perlu disiapkan sebelum simpan KK">
           Lengkapi identitas KK, domisili nasional, wilayah layanan posyandu lokal, dan minimal 1 anggota keluarga. Data RT/RW lokal hanya bisa dipilih dari menu Pengaturan.
@@ -854,11 +867,11 @@ onMounted(async () => {
               <p class="muted-text" style="margin: 4px 0 0">Minimal 1 anggota (kepala keluarga). Istri/anak opsional sesuai kondisi KK.</p>
             </div>
             <div class="inline-actions kk-member-actions">
-              <AppButton type="button" variant="secondary" @click="applyKkTemplate">Template KK Lengkap</AppButton>
-              <AppButton type="button" variant="secondary" @click="addMember('ISTRI', 'FEMALE')">Tambah Istri</AppButton>
-              <AppButton type="button" variant="secondary" @click="addMember('ANAK', 'MALE')">Tambah Anak</AppButton>
-              <AppButton type="button" variant="secondary" @click="addMember('ANAK', 'FEMALE')">Tambah Anak (P)</AppButton>
-              <AppButton type="button" variant="secondary" @click="addMember('LAINNYA', 'MALE')">Tambah Lainnya</AppButton>
+              <AppButton type="button" variant="secondary" :disabled="saving" @click="applyKkTemplate">Template KK Lengkap</AppButton>
+              <AppButton type="button" variant="secondary" :disabled="saving" @click="addMember('ISTRI', 'FEMALE')">Tambah Istri</AppButton>
+              <AppButton type="button" variant="secondary" :disabled="saving" @click="addMember('ANAK', 'MALE')">Tambah Anak</AppButton>
+              <AppButton type="button" variant="secondary" :disabled="saving" @click="addMember('ANAK', 'FEMALE')">Tambah Anak (P)</AppButton>
+              <AppButton type="button" variant="secondary" :disabled="saving" @click="addMember('LAINNYA', 'MALE')">Tambah Lainnya</AppButton>
             </div>
           </div>
 
@@ -866,7 +879,7 @@ onMounted(async () => {
             <div v-for="(member, index) in form.members" :key="`member-${index}`" class="kk-member-row">
               <div class="kk-member-row-head">
                 <strong>Anggota {{ index + 1 }}</strong>
-                <button class="ghost-button" type="button" @click="removeMember(index)">Hapus</button>
+                <button class="ghost-button" type="button" :disabled="saving" @click="removeMember(index)">Hapus</button>
               </div>
               <div class="kk-member-grid">
                 <label class="form-field">
@@ -920,8 +933,8 @@ onMounted(async () => {
         </div>
 
         <div class="inline-actions kk-form-actions">
-          <AppButton type="submit">Simpan</AppButton>
-          <AppButton type="button" variant="secondary" @click="openForm = false">Batal</AppButton>
+          <AppButton type="submit" :disabled="saving">{{ saving ? 'Menyimpan...' : 'Simpan' }}</AppButton>
+          <AppButton type="button" variant="secondary" :disabled="saving" @click="closeForm">Batal</AppButton>
         </div>
       </form>
     </AppDialog>
