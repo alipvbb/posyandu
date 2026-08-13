@@ -75,25 +75,145 @@ const serializeFamily = (item) => ({
 
 const normalizeMemberRelation = (value) => String(value || '').trim().toUpperCase();
 
+const digitsOnly = (value) => String(value || '').replace(/\D/g, '');
+
+const trimOrNull = (value) => {
+  const text = String(value || '').trim();
+  return text || null;
+};
+
+const maskIdentifier = (value) => {
+  const digits = digitsOnly(value);
+  if (!digits) return '-';
+  return `****${digits.slice(-4)}`;
+};
+
+const normalizeFamilyPayload = (payload) => ({
+  ...payload,
+  familyNumber: digitsOnly(payload.familyNumber),
+  headName: String(payload.headName || '').trim(),
+  address: String(payload.address || '').trim(),
+  phone: trimOrNull(payload.phone),
+  domicileProvinceCode: trimOrNull(payload.domicileProvinceCode),
+  domicileProvinceName: trimOrNull(payload.domicileProvinceName),
+  domicileRegencyCode: trimOrNull(payload.domicileRegencyCode),
+  domicileRegencyName: trimOrNull(payload.domicileRegencyName),
+  domicileDistrictCode: trimOrNull(payload.domicileDistrictCode),
+  domicileDistrictName: trimOrNull(payload.domicileDistrictName),
+  domicileVillageCode: trimOrNull(payload.domicileVillageCode),
+  domicileVillageName: trimOrNull(payload.domicileVillageName),
+  domicileRw: trimOrNull(payload.domicileRw),
+  domicileRt: trimOrNull(payload.domicileRt),
+});
+
 const normalizeFamilyMembers = (members = []) =>
   members
     .filter((item) => item?.fullName)
     .map((item) => ({
       relationType: normalizeMemberRelation(item.relationType),
       fullName: String(item.fullName || '').trim(),
-      nik: item.nik || null,
+      nik: digitsOnly(item.nik) || null,
       gender: item.gender,
-      placeOfBirth: item.placeOfBirth || null,
+      placeOfBirth: trimOrNull(item.placeOfBirth),
       birthDate: item.birthDate ? new Date(item.birthDate) : null,
-      religion: item.religion || null,
-      education: item.education || null,
-      occupation: item.occupation || null,
-      maritalStatus: item.maritalStatus || null,
-      citizenship: item.citizenship || 'WNI',
-      fatherName: item.fatherName || null,
-      motherName: item.motherName || null,
-      relationshipStatus: item.relationshipStatus || null,
+      religion: trimOrNull(item.religion),
+      education: trimOrNull(item.education),
+      occupation: trimOrNull(item.occupation),
+      maritalStatus: trimOrNull(item.maritalStatus),
+      citizenship: trimOrNull(item.citizenship) || 'WNI',
+      fatherName: trimOrNull(item.fatherName),
+      motherName: trimOrNull(item.motherName),
+      relationshipStatus: trimOrNull(item.relationshipStatus),
     }));
+
+const assertUniqueSubmittedMemberNik = (members) => {
+  const seen = new Set();
+  const duplicate = members.find((member) => {
+    if (!member.nik) return false;
+    if (seen.has(member.nik)) return true;
+    seen.add(member.nik);
+    return false;
+  });
+
+  if (duplicate) {
+    const message = `NIK anggota keluarga tidak boleh sama dalam satu KK (${maskIdentifier(duplicate.nik)}).`;
+    throw new ApiError(422, message, {
+      fieldErrors: {
+        members: [message],
+      },
+    });
+  }
+};
+
+const duplicateFamilyNumberError = (family, user) => {
+  const actorVillageId = getActorVillageId(user);
+  const sameVillage = actorVillageId === null || family.villageId === actorVillageId;
+  const message = sameVillage
+    ? `No KK ${maskIdentifier(family.familyNumber)} sudah terdaftar atas nama ${family.headName}. Cari di Master KK, jangan input ulang.`
+    : `No KK ${maskIdentifier(family.familyNumber)} sudah terdaftar di sistem pada desa lain. Periksa kembali nomor KK.`;
+
+  return new ApiError(409, message, {
+    fieldErrors: {
+      familyNumber: [message],
+    },
+  });
+};
+
+const duplicateMemberNikError = (member, submittedMember, user) => {
+  const actorVillageId = getActorVillageId(user);
+  const sameVillage = actorVillageId === null || member.family?.villageId === actorVillageId;
+  const submittedName = submittedMember?.fullName ? ` untuk ${submittedMember.fullName}` : '';
+  const message = sameVillage
+    ? `NIK anggota${submittedName} (${maskIdentifier(member.nik)}) sudah dipakai oleh ${member.fullName} pada KK ${maskIdentifier(member.family?.familyNumber)}.`
+    : `NIK anggota${submittedName} (${maskIdentifier(member.nik)}) sudah terdaftar di sistem pada desa lain. Periksa kembali NIK.`;
+
+  return new ApiError(409, message, {
+    fieldErrors: {
+      members: [message],
+    },
+  });
+};
+
+const assertFamilyNumberAvailable = async ({ familyNumber, excludeId = null, user }) => {
+  const existing = await prisma.family.findFirst({
+    where: {
+      familyNumber,
+      ...(excludeId ? { id: { not: excludeId } } : {}),
+    },
+    select: {
+      id: true,
+      familyNumber: true,
+      headName: true,
+      villageId: true,
+    },
+  });
+
+  if (existing) throw duplicateFamilyNumberError(existing, user);
+};
+
+const assertMemberNiksAvailable = async ({ members, excludeFamilyId = null, user }) => {
+  const niks = members.map((member) => member.nik).filter(Boolean);
+  if (!niks.length) return;
+
+  const existing = await prisma.familyMember.findFirst({
+    where: {
+      nik: { in: niks },
+      ...(excludeFamilyId ? { familyId: { not: excludeFamilyId } } : {}),
+    },
+    include: {
+      family: {
+        select: {
+          familyNumber: true,
+          villageId: true,
+        },
+      },
+    },
+  });
+
+  if (!existing) return;
+  const submittedMember = members.find((member) => member.nik === existing.nik);
+  throw duplicateMemberNikError(existing, submittedMember, user);
+};
 
 const findFatherCandidate = (members) => {
   const priority = ['AYAH', 'SUAMI', 'KEPALA KELUARGA'];
@@ -152,8 +272,17 @@ const syncParentMastersFromMembers = async (tx, familyId, members, familyPhone) 
 const mapPrismaError = (error) => {
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     if (error.code === 'P2002') {
-      if (String(error.meta?.target || '').includes('familyNumber')) return new ApiError(409, 'No KK sudah terdaftar');
-      if (String(error.meta?.target || '').includes('nik')) return new ApiError(409, 'NIK sudah terdaftar');
+      const target = Array.isArray(error.meta?.target) ? error.meta.target.join(',') : String(error.meta?.target || '');
+      if (target.includes('familyNumber')) {
+        return new ApiError(409, 'No KK sudah terdaftar. Cari data tersebut di Master KK sebelum input ulang.', {
+          fieldErrors: { familyNumber: ['No KK sudah terdaftar.'] },
+        });
+      }
+      if (target.includes('nik')) {
+        return new ApiError(409, 'NIK anggota keluarga sudah terdaftar. Periksa kembali daftar anggota KK.', {
+          fieldErrors: { members: ['NIK anggota keluarga sudah terdaftar.'] },
+        });
+      }
       return new ApiError(409, 'Data unik sudah terdaftar');
     }
     if (error.code === 'P2003') return new ApiError(400, 'Relasi wilayah tidak valid (cek desa/dusun/rw/rt)');
@@ -233,7 +362,7 @@ export const listFamilies = async (req, res, next) => {
 export const createFamily = async (req, res, next) => {
   try {
     const actorVillageId = getActorVillageId(req.user);
-    const payload = req.validated.body;
+    const payload = normalizeFamilyPayload(req.validated.body);
     const targetVillageId = actorVillageId ?? payload.villageId;
     ensureVillageAccess(req.user, targetVillageId, 'Anda hanya dapat menambah Master KK pada desa Anda');
     const serviceArea = await resolveFamilyServiceArea({
@@ -243,6 +372,9 @@ export const createFamily = async (req, res, next) => {
       rtId: payload.rtId,
     });
     const members = normalizeFamilyMembers(payload.members);
+    assertUniqueSubmittedMemberNik(members);
+    await assertFamilyNumberAvailable({ familyNumber: payload.familyNumber, user: req.user });
+    await assertMemberNiksAvailable({ members, user: req.user });
     const created = await prisma.$transaction(async (tx) => {
       const family = await tx.family.create({
         data: {
@@ -302,7 +434,7 @@ export const updateFamily = async (req, res, next) => {
   try {
     const actorVillageId = getActorVillageId(req.user);
     const id = req.validated.params.id;
-    const payload = req.validated.body;
+    const payload = normalizeFamilyPayload(req.validated.body);
     const members = normalizeFamilyMembers(payload.members);
     const exists = await prisma.family.findUnique({ where: { id } });
     if (!exists) throw new ApiError(404, 'Master KK tidak ditemukan');
@@ -315,6 +447,9 @@ export const updateFamily = async (req, res, next) => {
       rwId: payload.rwId,
       rtId: payload.rtId,
     });
+    assertUniqueSubmittedMemberNik(members);
+    await assertFamilyNumberAvailable({ familyNumber: payload.familyNumber, excludeId: id, user: req.user });
+    await assertMemberNiksAvailable({ members, excludeFamilyId: id, user: req.user });
 
     const updated = await prisma.$transaction(async (tx) => {
       await tx.family.update({

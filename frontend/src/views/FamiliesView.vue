@@ -111,6 +111,8 @@ const createMember = (
   relationshipStatus: '',
 });
 
+const digitsOnly = (value: string | number | null | undefined) => String(value || '').replace(/\D/g, '');
+
 const addMember = (relationType = 'ANAK', gender: 'MALE' | 'FEMALE' = 'MALE') => {
   form.members.push(createMember(relationType, gender));
 };
@@ -566,7 +568,8 @@ const save = async () => {
     appStore.pushToast('Lengkapi Identitas KK: No KK, nama kepala keluarga, dan alamat lengkap.', 'error');
     return;
   }
-  if (String(form.familyNumber).replace(/\D/g, '').length < 8) {
+  const normalizedFamilyNumber = digitsOnly(form.familyNumber);
+  if (normalizedFamilyNumber.length < 8) {
     appStore.pushToast('No KK terlalu pendek. Pastikan mengisi nomor KK sesuai dokumen keluarga.', 'error');
     return;
   }
@@ -584,6 +587,20 @@ const save = async () => {
     return;
   }
 
+  const submittedNiks = form.members
+    .map((member) => ({ name: member.fullName.trim(), nik: digitsOnly(member.nik) }))
+    .filter((member) => member.name && member.nik);
+  const seenNiks = new Set<string>();
+  const duplicatedNik = submittedNiks.find((member) => {
+    if (seenNiks.has(member.nik)) return true;
+    seenNiks.add(member.nik);
+    return false;
+  });
+  if (duplicatedNik) {
+    appStore.pushToast(`NIK anggota keluarga tidak boleh sama: ****${duplicatedNik.nik.slice(-4)}.`, 'error');
+    return;
+  }
+
   ensureLocalServiceDefaults(true);
   if (!form.villageId || !form.hamletId || !form.rwId || !form.rtId) {
     appStore.pushToast('Lengkapi Wilayah Layanan Posyandu. Jika Dusun/RW/RT kosong, buka Pengaturan lalu buat data wilayah lokal terlebih dahulu.', 'error');
@@ -596,10 +613,10 @@ const save = async () => {
   const domicileVillageName = getRegionNameByCode(domicileOptions.villages, form.domicileVillageCode);
 
   const payload = {
-    familyNumber: form.familyNumber,
-    headName: form.headName,
-    address: form.address,
-    phone: form.phone || null,
+    familyNumber: normalizedFamilyNumber,
+    headName: form.headName.trim(),
+    address: form.address.trim(),
+    phone: form.phone.trim() || null,
     villageId: Number(form.villageId),
     hamletId: Number(form.hamletId),
     rwId: Number(form.rwId),
@@ -612,25 +629,25 @@ const save = async () => {
     domicileDistrictName,
     domicileVillageCode: form.domicileVillageCode,
     domicileVillageName,
-    domicileRw: form.domicileRw || null,
-    domicileRt: form.domicileRt || null,
+    domicileRw: form.domicileRw.trim() || null,
+    domicileRt: form.domicileRt.trim() || null,
     members: form.members
       .filter((member) => member.fullName.trim())
       .map((member) => ({
         relationType: member.relationType,
-        fullName: member.fullName,
-        nik: member.nik || null,
+        fullName: member.fullName.trim(),
+        nik: digitsOnly(member.nik) || null,
         gender: member.gender,
-        placeOfBirth: member.placeOfBirth || null,
+        placeOfBirth: member.placeOfBirth.trim() || null,
         birthDate: member.birthDate || null,
-        religion: member.religion || null,
-        education: member.education || null,
-        occupation: member.occupation || null,
-        maritalStatus: member.maritalStatus || null,
-        citizenship: member.citizenship || null,
-        fatherName: member.fatherName || null,
-        motherName: member.motherName || null,
-        relationshipStatus: member.relationshipStatus || null,
+        religion: member.religion.trim() || null,
+        education: member.education.trim() || null,
+        occupation: member.occupation.trim() || null,
+        maritalStatus: member.maritalStatus.trim() || null,
+        citizenship: member.citizenship.trim() || null,
+        fatherName: member.fatherName.trim() || null,
+        motherName: member.motherName.trim() || null,
+        relationshipStatus: member.relationshipStatus.trim() || null,
       })),
   };
 

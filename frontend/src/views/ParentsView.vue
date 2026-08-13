@@ -11,6 +11,7 @@ import EmptyState from '../components/EmptyState.vue';
 import { parentsService } from '../services/parents.service';
 import { useAppStore } from '../stores/app';
 import { useMasterDataStore } from '../stores/master-data';
+import { extractApiErrorMessage } from '../utils/feedback';
 import { formatDate } from '../utils/format';
 
 type ParentType = 'mother' | 'father';
@@ -25,6 +26,8 @@ const meta = ref<any>(null);
 const openForm = ref(false);
 const editingId = ref<number | null>(null);
 const confirmDeleteId = ref<number | null>(null);
+const saving = ref(false);
+const deleting = ref(false);
 
 const filters = reactive({
   search: '',
@@ -87,11 +90,13 @@ const applyFilters = async () => {
 };
 
 const openCreate = () => {
+  if (saving.value || deleting.value) return;
   resetForm();
   openForm.value = true;
 };
 
 const editItem = (item: any) => {
+  if (saving.value || deleting.value) return;
   editingId.value = item.id;
   form.familyNumber = String(item.family?.familyNumber || '');
   form.fullName = item.fullName || '';
@@ -103,7 +108,18 @@ const editItem = (item: any) => {
   openForm.value = true;
 };
 
+const closeForm = () => {
+  if (saving.value) return;
+  openForm.value = false;
+};
+
+const closeDeleteDialog = () => {
+  if (deleting.value) return;
+  confirmDeleteId.value = null;
+};
+
 const save = async () => {
+  if (saving.value) return;
   if (!form.familyNumber) {
     appStore.pushToast('No KK wajib dipilih.', 'error');
     return;
@@ -118,6 +134,7 @@ const save = async () => {
     phone: form.phone || null,
   };
   try {
+    saving.value = true;
     if (editingId.value) {
       await parentsService.update(parentType.value, editingId.value, payload);
     } else {
@@ -128,19 +145,25 @@ const save = async () => {
     resetForm();
     await load();
   } catch (error: any) {
-    appStore.pushToast(error?.response?.data?.message || 'Gagal menyimpan data.', 'error');
+    appStore.pushToast(extractApiErrorMessage(error, 'Gagal menyimpan data.'), 'error');
+  } finally {
+    saving.value = false;
   }
 };
 
 const remove = async () => {
+  if (deleting.value) return;
   if (!confirmDeleteId.value) return;
   try {
+    deleting.value = true;
     await parentsService.remove(parentType.value, confirmDeleteId.value);
     appStore.pushToast(`Data ${parentLabel.value.toLowerCase()} berhasil dihapus.`, 'success');
     confirmDeleteId.value = null;
     await load();
   } catch (error: any) {
-    appStore.pushToast(error?.response?.data?.message || 'Gagal menghapus data.', 'error');
+    appStore.pushToast(extractApiErrorMessage(error, 'Gagal menghapus data.'), 'error');
+  } finally {
+    deleting.value = false;
   }
 };
 
@@ -167,7 +190,7 @@ onMounted(async () => {
       </div>
       <div class="inline-actions">
         <RouterLink to="/master-keluarga" class="app-button" data-variant="secondary">Kelola Master KK</RouterLink>
-        <AppButton @click="openCreate">Tambah {{ parentLabel }}</AppButton>
+        <AppButton :disabled="saving || deleting" @click="openCreate">Tambah {{ parentLabel }}</AppButton>
       </div>
     </div>
 
@@ -223,8 +246,8 @@ onMounted(async () => {
         </template>
         <template #aksi="{ row }">
           <div class="inline-actions">
-            <button class="ghost-button" type="button" @click="editItem(row)">Edit</button>
-            <button class="ghost-button" type="button" @click="confirmDeleteId = row.id">Hapus</button>
+            <button class="ghost-button" type="button" :disabled="saving || deleting" @click="editItem(row)">Edit</button>
+            <button class="ghost-button" type="button" :disabled="saving || deleting" @click="confirmDeleteId = row.id">Hapus</button>
           </div>
         </template>
       </DataTable>
@@ -240,7 +263,7 @@ onMounted(async () => {
       </div>
     </AppCard>
 
-    <AppDialog :open="openForm" :title="editingId ? `Edit ${parentLabel}` : `Tambah ${parentLabel}`" @close="openForm = false">
+    <AppDialog :open="openForm" :title="editingId ? `Edit ${parentLabel}` : `Tambah ${parentLabel}`" @close="closeForm">
       <form class="form-grid" @submit.prevent="save">
         <AppSelect v-model="form.familyNumber" label="No KK (Master Kartu Keluarga)" :options="familyOptions" />
         <AppInput v-model="form.fullName" :label="`Nama ${parentLabel}`" />
@@ -250,17 +273,17 @@ onMounted(async () => {
         <AppInput v-model="form.occupation" label="Pekerjaan" />
         <AppInput v-model="form.phone" label="No HP" />
         <div class="inline-actions">
-          <AppButton type="submit">Simpan</AppButton>
-          <AppButton variant="secondary" type="button" @click="openForm = false">Batal</AppButton>
+          <AppButton type="submit" :disabled="saving">{{ saving ? 'Menyimpan...' : 'Simpan' }}</AppButton>
+          <AppButton variant="secondary" type="button" :disabled="saving" @click="closeForm">Batal</AppButton>
         </div>
       </form>
     </AppDialog>
 
-    <AppDialog :open="Boolean(confirmDeleteId)" :title="`Hapus data ${parentLabel.toLowerCase()}?`" @close="confirmDeleteId = null">
+    <AppDialog :open="Boolean(confirmDeleteId)" :title="`Hapus data ${parentLabel.toLowerCase()}?`" @close="closeDeleteDialog">
       <p class="muted-text">Data master orang tua ini akan dihapus permanen.</p>
       <div class="inline-actions">
-        <AppButton variant="danger" @click="remove">Ya, hapus</AppButton>
-        <AppButton variant="secondary" @click="confirmDeleteId = null">Batal</AppButton>
+        <AppButton variant="danger" :disabled="deleting" @click="remove">{{ deleting ? 'Menghapus...' : 'Ya, hapus' }}</AppButton>
+        <AppButton variant="secondary" :disabled="deleting" @click="closeDeleteDialog">Batal</AppButton>
       </div>
     </AppDialog>
   </div>

@@ -14,6 +14,7 @@ import { extractApiErrorMessage } from '../utils/feedback';
 
 const appStore = useAppStore();
 const loading = ref(true);
+const busyAction = ref('');
 
 const hamlets = ref<any[]>([]);
 const rws = ref<any[]>([]);
@@ -58,6 +59,29 @@ const rwOptions = computed(() =>
     value: String(item.id),
   })),
 );
+
+const isBusy = (action: string) => busyAction.value === action;
+const isAnyBusy = computed(() => Boolean(busyAction.value));
+
+const closeHamletDialog = () => {
+  if (isAnyBusy.value) return;
+  hamletDialogOpen.value = false;
+};
+
+const closeRwDialog = () => {
+  if (isAnyBusy.value) return;
+  rwDialogOpen.value = false;
+};
+
+const closeRtDialog = () => {
+  if (isAnyBusy.value) return;
+  rtDialogOpen.value = false;
+};
+
+const closePosyanduDialog = () => {
+  if (isAnyBusy.value) return;
+  posyanduDialogOpen.value = false;
+};
 
 const loadAll = async () => {
   loading.value = true;
@@ -106,22 +130,26 @@ const resetPosyanduForm = () => {
 };
 
 const openCreateHamlet = () => {
+  if (isAnyBusy.value) return;
   resetHamletForm();
   hamletDialogOpen.value = true;
 };
 
 const openEditHamlet = (item: any) => {
+  if (isAnyBusy.value) return;
   hamletForm.id = item.id;
   hamletForm.name = item.name || '';
   hamletDialogOpen.value = true;
 };
 
 const saveHamlet = async () => {
+  if (isAnyBusy.value) return;
   if (!hamletForm.name.trim()) {
     appStore.pushToast('Nama dusun wajib diisi.', 'error');
     return;
   }
   try {
+    busyAction.value = 'saveHamlet';
     if (hamletForm.id) {
       await regionAdminService.updateHamlet(hamletForm.id, { name: hamletForm.name.trim() });
     } else {
@@ -133,26 +161,34 @@ const saveHamlet = async () => {
     await loadAll();
   } catch (error: any) {
     appStore.pushToast(extractApiErrorMessage(error, 'Gagal menyimpan dusun.'), 'error');
+  } finally {
+    busyAction.value = '';
   }
 };
 
 const removeHamlet = async (item: any) => {
+  if (isAnyBusy.value) return;
   if (!confirm(`Hapus dusun "${item.name}"?`)) return;
   try {
+    busyAction.value = `removeHamlet:${item.id}`;
     await regionAdminService.deleteHamlet(item.id);
     appStore.pushToast('Dusun berhasil dihapus.', 'success');
     await loadAll();
   } catch (error: any) {
     appStore.pushToast(extractApiErrorMessage(error, 'Gagal menghapus dusun.'), 'error');
+  } finally {
+    busyAction.value = '';
   }
 };
 
 const openCreateRw = () => {
+  if (isAnyBusy.value) return;
   resetRwForm();
   rwDialogOpen.value = true;
 };
 
 const openEditRw = (item: any) => {
+  if (isAnyBusy.value) return;
   rwForm.id = item.id;
   rwForm.hamletId = item.hamletId ? String(item.hamletId) : '';
   rwForm.name = item.name || '';
@@ -160,11 +196,13 @@ const openEditRw = (item: any) => {
 };
 
 const saveRw = async () => {
+  if (isAnyBusy.value) return;
   if (!rwForm.hamletId || !rwForm.name.trim()) {
     appStore.pushToast('Pilih dusun dan isi nama RW.', 'error');
     return;
   }
   try {
+    busyAction.value = 'saveRw';
     if (rwForm.id) {
       await regionAdminService.updateRw(rwForm.id, { hamletId: Number(rwForm.hamletId), name: rwForm.name.trim() });
     } else {
@@ -176,26 +214,34 @@ const saveRw = async () => {
     await loadAll();
   } catch (error: any) {
     appStore.pushToast(extractApiErrorMessage(error, 'Gagal menyimpan RW.'), 'error');
+  } finally {
+    busyAction.value = '';
   }
 };
 
 const removeRw = async (item: any) => {
+  if (isAnyBusy.value) return;
   if (!confirm(`Hapus ${item.name}?`)) return;
   try {
+    busyAction.value = `removeRw:${item.id}`;
     await regionAdminService.deleteRw(item.id);
     appStore.pushToast('RW berhasil dihapus.', 'success');
     await loadAll();
   } catch (error: any) {
     appStore.pushToast(extractApiErrorMessage(error, 'Gagal menghapus RW.'), 'error');
+  } finally {
+    busyAction.value = '';
   }
 };
 
 const openCreateRt = () => {
+  if (isAnyBusy.value) return;
   resetRtForm();
   rtDialogOpen.value = true;
 };
 
 const openEditRt = (item: any) => {
+  if (isAnyBusy.value) return;
   rtForm.id = item.id;
   rtForm.rwId = item.rwId ? String(item.rwId) : '';
   rtForm.name = item.name || '';
@@ -203,11 +249,13 @@ const openEditRt = (item: any) => {
 };
 
 const saveRt = async () => {
+  if (isAnyBusy.value) return;
   if (!rtForm.rwId || !rtForm.name.trim()) {
     appStore.pushToast('Pilih RW dan isi nama RT.', 'error');
     return;
   }
   try {
+    busyAction.value = 'saveRt';
     if (rtForm.id) {
       await regionAdminService.updateRt(rtForm.id, { rwId: Number(rtForm.rwId), name: rtForm.name.trim() });
     } else {
@@ -219,26 +267,34 @@ const saveRt = async () => {
     await loadAll();
   } catch (error: any) {
     appStore.pushToast(extractApiErrorMessage(error, 'Gagal menyimpan RT.'), 'error');
+  } finally {
+    busyAction.value = '';
   }
 };
 
 const removeRt = async (item: any) => {
+  if (isAnyBusy.value) return;
   if (!confirm(`Hapus ${item.name}?`)) return;
   try {
+    busyAction.value = `removeRt:${item.id}`;
     await regionAdminService.deleteRt(item.id);
     appStore.pushToast('RT berhasil dihapus.', 'success');
     await loadAll();
   } catch (error: any) {
     appStore.pushToast(extractApiErrorMessage(error, 'Gagal menghapus RT.'), 'error');
+  } finally {
+    busyAction.value = '';
   }
 };
 
 const openCreatePosyandu = () => {
+  if (isAnyBusy.value) return;
   resetPosyanduForm();
   posyanduDialogOpen.value = true;
 };
 
 const openEditPosyandu = (item: any) => {
+  if (isAnyBusy.value) return;
   posyanduForm.id = item.id;
   posyanduForm.hamletId = item.hamletId ? String(item.hamletId) : '';
   posyanduForm.name = item.name || '';
@@ -249,6 +305,7 @@ const openEditPosyandu = (item: any) => {
 };
 
 const savePosyandu = async () => {
+  if (isAnyBusy.value) return;
   if (!posyanduForm.hamletId || !posyanduForm.name.trim()) {
     appStore.pushToast('Pilih dusun dan isi nama posyandu.', 'error');
     return;
@@ -261,6 +318,7 @@ const savePosyandu = async () => {
     contactPhone: posyanduForm.contactPhone.trim() || null,
   };
   try {
+    busyAction.value = 'savePosyandu';
     if (posyanduForm.id) {
       await regionAdminService.updatePosyandu(posyanduForm.id, payload);
     } else {
@@ -272,17 +330,23 @@ const savePosyandu = async () => {
     await loadAll();
   } catch (error: any) {
     appStore.pushToast(extractApiErrorMessage(error, 'Gagal menyimpan posyandu.'), 'error');
+  } finally {
+    busyAction.value = '';
   }
 };
 
 const removePosyandu = async (item: any) => {
+  if (isAnyBusy.value) return;
   if (!confirm(`Hapus posyandu "${item.name}"?`)) return;
   try {
+    busyAction.value = `removePosyandu:${item.id}`;
     await regionAdminService.deletePosyandu(item.id);
     appStore.pushToast('Posyandu berhasil dihapus.', 'success');
     await loadAll();
   } catch (error: any) {
     appStore.pushToast(extractApiErrorMessage(error, 'Gagal menghapus posyandu.'), 'error');
+  } finally {
+    busyAction.value = '';
   }
 };
 
@@ -309,7 +373,7 @@ onMounted(loadAll);
       <AppCard>
         <div class="section-head">
           <strong>Dusun</strong>
-          <AppButton @click="openCreateHamlet">Tambah Dusun</AppButton>
+          <AppButton :disabled="isAnyBusy" @click="openCreateHamlet">Tambah Dusun</AppButton>
         </div>
         <DataTable :columns="[{ key: 'name', label: 'Nama Dusun' }, { key: 'summary', label: 'Ringkasan' }, { key: 'aksi', label: 'Aksi' }]" :rows="hamlets">
           <template #summary="{ row }">
@@ -317,8 +381,10 @@ onMounted(loadAll);
           </template>
           <template #aksi="{ row }">
             <div class="inline-actions">
-              <button class="ghost-button" type="button" @click="openEditHamlet(row)">Edit</button>
-              <button class="ghost-button" type="button" @click="removeHamlet(row)">Hapus</button>
+              <button class="ghost-button" type="button" :disabled="isAnyBusy" @click="openEditHamlet(row)">Edit</button>
+              <button class="ghost-button" type="button" :disabled="isAnyBusy" @click="removeHamlet(row)">
+                {{ isBusy(`removeHamlet:${row.id}`) ? 'Menghapus...' : 'Hapus' }}
+              </button>
             </div>
           </template>
         </DataTable>
@@ -327,15 +393,17 @@ onMounted(loadAll);
       <AppCard>
         <div class="section-head">
           <strong>RW</strong>
-          <AppButton @click="openCreateRw">Tambah RW</AppButton>
+          <AppButton :disabled="isAnyBusy" @click="openCreateRw">Tambah RW</AppButton>
         </div>
         <DataTable :columns="[{ key: 'name', label: 'Nama RW' }, { key: 'hamlet', label: 'Dusun' }, { key: 'summary', label: 'Ringkasan' }, { key: 'aksi', label: 'Aksi' }]" :rows="rws">
           <template #hamlet="{ row }">{{ row.hamlet?.name || '-' }}</template>
           <template #summary="{ row }">RT: {{ row._count?.rts || 0 }} • Balita: {{ row._count?.toddlers || 0 }}</template>
           <template #aksi="{ row }">
             <div class="inline-actions">
-              <button class="ghost-button" type="button" @click="openEditRw(row)">Edit</button>
-              <button class="ghost-button" type="button" @click="removeRw(row)">Hapus</button>
+              <button class="ghost-button" type="button" :disabled="isAnyBusy" @click="openEditRw(row)">Edit</button>
+              <button class="ghost-button" type="button" :disabled="isAnyBusy" @click="removeRw(row)">
+                {{ isBusy(`removeRw:${row.id}`) ? 'Menghapus...' : 'Hapus' }}
+              </button>
             </div>
           </template>
         </DataTable>
@@ -344,15 +412,17 @@ onMounted(loadAll);
       <AppCard>
         <div class="section-head">
           <strong>RT</strong>
-          <AppButton @click="openCreateRt">Tambah RT</AppButton>
+          <AppButton :disabled="isAnyBusy" @click="openCreateRt">Tambah RT</AppButton>
         </div>
         <DataTable :columns="[{ key: 'name', label: 'Nama RT' }, { key: 'rw', label: 'RW' }, { key: 'hamlet', label: 'Dusun' }, { key: 'aksi', label: 'Aksi' }]" :rows="rts">
           <template #rw="{ row }">{{ row.rw?.name || '-' }}</template>
           <template #hamlet="{ row }">{{ row.rw?.hamlet?.name || '-' }}</template>
           <template #aksi="{ row }">
             <div class="inline-actions">
-              <button class="ghost-button" type="button" @click="openEditRt(row)">Edit</button>
-              <button class="ghost-button" type="button" @click="removeRt(row)">Hapus</button>
+              <button class="ghost-button" type="button" :disabled="isAnyBusy" @click="openEditRt(row)">Edit</button>
+              <button class="ghost-button" type="button" :disabled="isAnyBusy" @click="removeRt(row)">
+                {{ isBusy(`removeRt:${row.id}`) ? 'Menghapus...' : 'Hapus' }}
+              </button>
             </div>
           </template>
         </DataTable>
@@ -361,7 +431,7 @@ onMounted(loadAll);
       <AppCard>
         <div class="section-head">
           <strong>Posyandu</strong>
-          <AppButton @click="openCreatePosyandu">Tambah Posyandu</AppButton>
+          <AppButton :disabled="isAnyBusy" @click="openCreatePosyandu">Tambah Posyandu</AppButton>
         </div>
         <DataTable
           :columns="[{ key: 'name', label: 'Nama Posyandu' }, { key: 'hamlet', label: 'Dusun' }, { key: 'detail', label: 'Detail' }, { key: 'summary', label: 'Ringkasan' }, { key: 'aksi', label: 'Aksi' }]"
@@ -375,25 +445,27 @@ onMounted(loadAll);
           <template #summary="{ row }">Balita: {{ row._count?.toddlers || 0 }} • Pemeriksaan: {{ row._count?.checkups || 0 }}</template>
           <template #aksi="{ row }">
             <div class="inline-actions">
-              <button class="ghost-button" type="button" @click="openEditPosyandu(row)">Edit</button>
-              <button class="ghost-button" type="button" @click="removePosyandu(row)">Hapus</button>
+              <button class="ghost-button" type="button" :disabled="isAnyBusy" @click="openEditPosyandu(row)">Edit</button>
+              <button class="ghost-button" type="button" :disabled="isAnyBusy" @click="removePosyandu(row)">
+                {{ isBusy(`removePosyandu:${row.id}`) ? 'Menghapus...' : 'Hapus' }}
+              </button>
             </div>
           </template>
         </DataTable>
       </AppCard>
     </template>
 
-    <AppDialog :open="hamletDialogOpen" :title="hamletForm.id ? 'Edit Dusun' : 'Tambah Dusun'" @close="hamletDialogOpen = false">
+    <AppDialog :open="hamletDialogOpen" :title="hamletForm.id ? 'Edit Dusun' : 'Tambah Dusun'" @close="closeHamletDialog">
       <form class="form-grid" @submit.prevent="saveHamlet">
         <AppInput v-model="hamletForm.name" label="Nama Dusun" required hint="Contoh: Dusun Krajan, Dusun Brangkal Barat." />
         <div class="inline-actions">
-          <AppButton type="submit">Simpan</AppButton>
-          <AppButton type="button" variant="secondary" @click="hamletDialogOpen = false">Batal</AppButton>
+          <AppButton type="submit" :disabled="isAnyBusy">{{ isBusy('saveHamlet') ? 'Menyimpan...' : 'Simpan' }}</AppButton>
+          <AppButton type="button" variant="secondary" :disabled="isAnyBusy" @click="closeHamletDialog">Batal</AppButton>
         </div>
       </form>
     </AppDialog>
 
-    <AppDialog :open="rwDialogOpen" :title="rwForm.id ? 'Edit RW' : 'Tambah RW'" @close="rwDialogOpen = false">
+    <AppDialog :open="rwDialogOpen" :title="rwForm.id ? 'Edit RW' : 'Tambah RW'" @close="closeRwDialog">
       <form class="form-grid" @submit.prevent="saveRw">
         <AppInfoNote v-if="!hamletOptions.length" title="Dusun belum tersedia" tone="warning">
           Tambahkan data Dusun terlebih dahulu sebelum membuat RW.
@@ -401,13 +473,13 @@ onMounted(loadAll);
         <AppSelect v-model="rwForm.hamletId" label="Dusun" :options="hamletOptions" required empty-hint="Belum ada Dusun. Buat Dusun dahulu." />
         <AppInput v-model="rwForm.name" label="Nama RW" required hint="Gunakan format singkat, contoh: RW 01." />
         <div class="inline-actions">
-          <AppButton type="submit">Simpan</AppButton>
-          <AppButton type="button" variant="secondary" @click="rwDialogOpen = false">Batal</AppButton>
+          <AppButton type="submit" :disabled="isAnyBusy">{{ isBusy('saveRw') ? 'Menyimpan...' : 'Simpan' }}</AppButton>
+          <AppButton type="button" variant="secondary" :disabled="isAnyBusy" @click="closeRwDialog">Batal</AppButton>
         </div>
       </form>
     </AppDialog>
 
-    <AppDialog :open="rtDialogOpen" :title="rtForm.id ? 'Edit RT' : 'Tambah RT'" @close="rtDialogOpen = false">
+    <AppDialog :open="rtDialogOpen" :title="rtForm.id ? 'Edit RT' : 'Tambah RT'" @close="closeRtDialog">
       <form class="form-grid" @submit.prevent="saveRt">
         <AppInfoNote v-if="!rwOptions.length" title="RW belum tersedia" tone="warning">
           Tambahkan RW terlebih dahulu. RT harus punya induk RW agar laporan bisa difilter per wilayah.
@@ -415,13 +487,13 @@ onMounted(loadAll);
         <AppSelect v-model="rtForm.rwId" label="RW" :options="rwOptions" required empty-hint="Belum ada RW. Buat RW dahulu." />
         <AppInput v-model="rtForm.name" label="Nama RT" required hint="Gunakan format singkat, contoh: RT 03." />
         <div class="inline-actions">
-          <AppButton type="submit">Simpan</AppButton>
-          <AppButton type="button" variant="secondary" @click="rtDialogOpen = false">Batal</AppButton>
+          <AppButton type="submit" :disabled="isAnyBusy">{{ isBusy('saveRt') ? 'Menyimpan...' : 'Simpan' }}</AppButton>
+          <AppButton type="button" variant="secondary" :disabled="isAnyBusy" @click="closeRtDialog">Batal</AppButton>
         </div>
       </form>
     </AppDialog>
 
-    <AppDialog :open="posyanduDialogOpen" :title="posyanduForm.id ? 'Edit Posyandu' : 'Tambah Posyandu'" @close="posyanduDialogOpen = false">
+    <AppDialog :open="posyanduDialogOpen" :title="posyanduForm.id ? 'Edit Posyandu' : 'Tambah Posyandu'" @close="closePosyanduDialog">
       <form class="form-grid" @submit.prevent="savePosyandu">
         <AppInfoNote v-if="!hamletOptions.length" title="Dusun belum tersedia" tone="warning">
           Posyandu harus ditempatkan pada Dusun. Buat Dusun terlebih dahulu.
@@ -432,8 +504,8 @@ onMounted(loadAll);
         <AppInput v-model="posyanduForm.scheduleDay" label="Jadwal" hint="Opsional, contoh: Minggu ke-2 setiap bulan." />
         <AppInput v-model="posyanduForm.contactPhone" label="No Kontak" inputmode="tel" hint="Opsional, nomor kader/penanggung jawab." />
         <div class="inline-actions">
-          <AppButton type="submit">Simpan</AppButton>
-          <AppButton type="button" variant="secondary" @click="posyanduDialogOpen = false">Batal</AppButton>
+          <AppButton type="submit" :disabled="isAnyBusy">{{ isBusy('savePosyandu') ? 'Menyimpan...' : 'Simpan' }}</AppButton>
+          <AppButton type="button" variant="secondary" :disabled="isAnyBusy" @click="closePosyanduDialog">Batal</AppButton>
         </div>
       </form>
     </AppDialog>

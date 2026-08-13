@@ -26,6 +26,8 @@ const fieldLabelMap: Record<string, string> = {
   rtId: 'RT',
   familyId: 'Master KK',
   familyMemberId: 'Anak dari KK',
+  members: 'Anggota keluarga',
+  nik: 'NIK',
   fullName: 'Nama lengkap',
   birthDate: 'Tanggal lahir',
   gender: 'Jenis kelamin',
