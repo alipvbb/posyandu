@@ -3,6 +3,7 @@ import { prisma } from '../../config/prisma.js';
 import { writeAuditLog } from '../../services/audit.service.js';
 import { ApiError } from '../../utils/api-error.js';
 import { buildMeta, buildPagination } from '../../utils/pagination.js';
+import { ensureVillageAccess, getActorVillageId } from '../../utils/village-scope.js';
 
 const PARENT_MODEL_MAP = {
   mother: prisma.mother,
@@ -46,31 +47,40 @@ const serializeParent = (item, parentType) => ({
   updatedAt: item.updatedAt,
 });
 
+const digitsOnly = (value) => String(value || '').replace(/\D/g, '');
+
 const normalizePayload = (payload) => ({
-  fullName: payload.fullName,
-  nik: payload.nik,
+  fullName: String(payload.fullName || '').trim(),
+  nik: digitsOnly(payload.nik) || null,
   birthDate: payload.birthDate ? new Date(payload.birthDate) : null,
-  education: payload.education,
-  occupation: payload.occupation,
-  phone: payload.phone,
+  education: payload.education || null,
+  occupation: payload.occupation || null,
+  phone: payload.phone || null,
 });
 
-const resolveFamilyId = async (payload) => {
+const resolveFamilyId = async (payload, user) => {
+  const actorVillageId = getActorVillageId(user);
   if (payload.familyId) {
     const family = await prisma.family.findUnique({
       where: { id: Number(payload.familyId) },
-      select: { id: true },
+      select: { id: true, villageId: true },
     });
     if (!family) throw new ApiError(404, 'Master Kartu Keluarga tidak ditemukan');
+    ensureVillageAccess(user, family.villageId, 'Anda hanya dapat memilih KK pada desa Anda');
     return family.id;
   }
 
   if (payload.familyNumber) {
-    const family = await prisma.family.findUnique({
-      where: { familyNumber: payload.familyNumber },
-      select: { id: true },
+    const family = await prisma.family.findFirst({
+      where: {
+        familyNumber: digitsOnly(payload.familyNumber),
+        ...(actorVillageId === null ? {} : { villageId: actorVillageId }),
+      },
+      select: { id: true, villageId: true },
+      orderBy: { createdAt: 'desc' },
     });
     if (!family) throw new ApiError(404, 'Master Kartu Keluarga tidak ditemukan');
+    ensureVillageAccess(user, family.villageId, 'Anda hanya dapat memilih KK pada desa Anda');
     return family.id;
   }
 
@@ -92,10 +102,11 @@ const handlePrismaWriteError = (error) => {
 export const listParents = (parentType) => async (req, res, next) => {
   try {
     const { model, type } = resolveParentModel(parentType);
+    const actorVillageId = getActorVillageId(req.user);
     const { page, pageSize, skip, take } = buildPagination(req.query);
     const search = req.query.search?.trim();
     const familyId = req.query.familyId ? Number(req.query.familyId) : null;
-    const familyNumber = req.query.familyNumber?.trim();
+    const familyNumber = req.query.familyNumber ? digitsOnly(req.query.familyNumber) : null;
 
     const where = {
       ...(search
@@ -115,10 +126,19 @@ export const listParents = (parentType) => async (req, res, next) => {
               is: {
                 ...(familyId ? { id: familyId } : {}),
                 ...(familyNumber ? { familyNumber: { contains: familyNumber } } : {}),
+                ...(actorVillageId === null ? {} : { villageId: actorVillageId }),
               },
             },
           }
-        : {}),
+        : actorVillageId === null
+          ? {}
+          : {
+              family: {
+                is: {
+                  villageId: actorVillageId,
+                },
+              },
+            }),
     };
 
     const [items, total] = await Promise.all([
@@ -153,7 +173,7 @@ export const listParents = (parentType) => async (req, res, next) => {
 export const createParent = (parentType) => async (req, res, next) => {
   try {
     const { model, type, label } = resolveParentModel(parentType);
-    const familyId = await resolveFamilyId(req.validated.body);
+    const familyId = await resolveFamilyId(req.validated.body, req.user);
     const payload = {
       ...normalizePayload(req.validated.body),
       familyId,
@@ -208,14 +228,18 @@ export const updateParent = (parentType) => async (req, res, next) => {
   try {
     const { model, type, label } = resolveParentModel(parentType);
     const id = req.validated.params.id;
-    const familyId = await resolveFamilyId(req.validated.body);
+    const familyId = await resolveFamilyId(req.validated.body, req.user);
     const payload = {
       ...normalizePayload(req.validated.body),
       familyId,
     };
 
-    const exists = await model.findUnique({ where: { id } });
+    const exists = await model.findUnique({
+      where: { id },
+      include: { family: { select: { villageId: true } } },
+    });
     if (!exists) throw new ApiError(404, `${label} tidak ditemukan`);
+    ensureVillageAccess(req.user, exists.family?.villageId, `Anda hanya dapat mengubah ${label.toLowerCase()} pada desa Anda`);
 
     const duplicateAtFamily = await model.findFirst({
       where: {
@@ -271,8 +295,12 @@ export const deleteParent = (parentType) => async (req, res, next) => {
     const { model, type, label } = resolveParentModel(parentType);
     const id = Number(req.params.id);
 
-    const exists = await model.findUnique({ where: { id } });
+    const exists = await model.findUnique({
+      where: { id },
+      include: { family: { select: { villageId: true } } },
+    });
     if (!exists) throw new ApiError(404, `${label} tidak ditemukan`);
+    ensureVillageAccess(req.user, exists.family?.villageId, `Anda hanya dapat menghapus ${label.toLowerCase()} pada desa Anda`);
 
     await model.delete({ where: { id } });
 

@@ -206,7 +206,7 @@ model Family {
   domicileVillageName  String?
   domicileRw           String?
   domicileRt           String?
-  familyNumber  String     @unique
+  familyNumber  String
   headName      String
   address       String
   phone         String?
@@ -226,6 +226,7 @@ model Family {
   @@index([domicileRegencyCode])
   @@index([domicileDistrictCode])
   @@index([domicileVillageCode])
+  @@unique([villageId, familyNumber])
 }
 
 model FamilyMember {
@@ -233,7 +234,7 @@ model FamilyMember {
   familyId           Int
   relationType       String
   fullName           String
-  nik                String?   @unique
+  nik                String?
   gender             Gender
   placeOfBirth       String?
   birthDate          DateTime?
@@ -252,13 +253,14 @@ model FamilyMember {
   @@index([familyId])
   @@index([relationType])
   @@index([fullName])
+  @@unique([familyId, nik])
 }
 
 model Mother {
   id          Int       @id @default(autoincrement())
   familyId    Int
   fullName    String
-  nik         String?   @unique
+  nik         String?
   birthDate   DateTime?
   education   String?
   occupation  String?
@@ -266,13 +268,15 @@ model Mother {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   family      Family    @relation(fields: [familyId], references: [id], onDelete: Cascade)
+
+  @@unique([familyId, nik])
 }
 
 model Father {
   id          Int       @id @default(autoincrement())
   familyId    Int
   fullName    String
-  nik         String?   @unique
+  nik         String?
   birthDate   DateTime?
   education   String?
   occupation  String?
@@ -280,13 +284,15 @@ model Father {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   family      Family    @relation(fields: [familyId], references: [id], onDelete: Cascade)
+
+  @@unique([familyId, nik])
 }
 
 model Toddler {
   id                Int           @id @default(autoincrement())
   code              String        @unique
   fullName          String
-  nik               String?       @unique
+  nik               String?
   noKk              String?
   placeOfBirth      String
   birthDate         DateTime
@@ -318,6 +324,7 @@ model Toddler {
   @@index([fullName])
   @@index([hamletId, posyanduId])
   @@index([status])
+  @@unique([familyId, nik])
 }
 
 model ToddlerCard {

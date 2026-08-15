@@ -145,12 +145,8 @@ const assertUniqueSubmittedMemberNik = (members) => {
   }
 };
 
-const duplicateFamilyNumberError = (family, user) => {
-  const actorVillageId = getActorVillageId(user);
-  const sameVillage = actorVillageId === null || family.villageId === actorVillageId;
-  const message = sameVillage
-    ? `No KK ${maskIdentifier(family.familyNumber)} sudah terdaftar atas nama ${family.headName}. Cari di Master KK, jangan input ulang.`
-    : `No KK ${maskIdentifier(family.familyNumber)} sudah terdaftar di sistem pada desa lain. Periksa kembali nomor KK.`;
+const duplicateFamilyNumberError = (family) => {
+  const message = `No KK ${maskIdentifier(family.familyNumber)} sudah terdaftar di desa ini atas nama ${family.headName}. Cari di Master KK, jangan input ulang.`;
 
   return new ApiError(409, message, {
     fieldErrors: {
@@ -159,13 +155,9 @@ const duplicateFamilyNumberError = (family, user) => {
   });
 };
 
-const duplicateMemberNikError = (member, submittedMember, user) => {
-  const actorVillageId = getActorVillageId(user);
-  const sameVillage = actorVillageId === null || member.family?.villageId === actorVillageId;
+const duplicateMemberNikError = (member, submittedMember) => {
   const submittedName = submittedMember?.fullName ? ` untuk ${submittedMember.fullName}` : '';
-  const message = sameVillage
-    ? `NIK anggota${submittedName} (${maskIdentifier(member.nik)}) sudah dipakai oleh ${member.fullName} pada KK ${maskIdentifier(member.family?.familyNumber)}.`
-    : `NIK anggota${submittedName} (${maskIdentifier(member.nik)}) sudah terdaftar di sistem pada desa lain. Periksa kembali NIK.`;
+  const message = `NIK anggota${submittedName} (${maskIdentifier(member.nik)}) sudah dipakai di desa ini oleh ${member.fullName} pada KK ${maskIdentifier(member.family?.familyNumber)}.`;
 
   return new ApiError(409, message, {
     fieldErrors: {
@@ -174,10 +166,11 @@ const duplicateMemberNikError = (member, submittedMember, user) => {
   });
 };
 
-const assertFamilyNumberAvailable = async ({ familyNumber, excludeId = null, user }) => {
+const assertFamilyNumberAvailable = async ({ familyNumber, villageId, excludeId = null }) => {
   const existing = await prisma.family.findFirst({
     where: {
       familyNumber,
+      villageId,
       ...(excludeId ? { id: { not: excludeId } } : {}),
     },
     select: {
@@ -188,10 +181,10 @@ const assertFamilyNumberAvailable = async ({ familyNumber, excludeId = null, use
     },
   });
 
-  if (existing) throw duplicateFamilyNumberError(existing, user);
+  if (existing) throw duplicateFamilyNumberError(existing);
 };
 
-const assertMemberNiksAvailable = async ({ members, excludeFamilyId = null, user }) => {
+const assertMemberNiksAvailable = async ({ members, villageId, excludeFamilyId = null }) => {
   const niks = members.map((member) => member.nik).filter(Boolean);
   if (!niks.length) return;
 
@@ -199,6 +192,11 @@ const assertMemberNiksAvailable = async ({ members, excludeFamilyId = null, user
     where: {
       nik: { in: niks },
       ...(excludeFamilyId ? { familyId: { not: excludeFamilyId } } : {}),
+      family: {
+        is: {
+          villageId,
+        },
+      },
     },
     include: {
       family: {
@@ -212,7 +210,7 @@ const assertMemberNiksAvailable = async ({ members, excludeFamilyId = null, user
 
   if (!existing) return;
   const submittedMember = members.find((member) => member.nik === existing.nik);
-  throw duplicateMemberNikError(existing, submittedMember, user);
+  throw duplicateMemberNikError(existing, submittedMember);
 };
 
 const findFatherCandidate = (members) => {
@@ -274,8 +272,8 @@ const mapPrismaError = (error) => {
     if (error.code === 'P2002') {
       const target = Array.isArray(error.meta?.target) ? error.meta.target.join(',') : String(error.meta?.target || '');
       if (target.includes('familyNumber')) {
-        return new ApiError(409, 'No KK sudah terdaftar. Cari data tersebut di Master KK sebelum input ulang.', {
-          fieldErrors: { familyNumber: ['No KK sudah terdaftar.'] },
+        return new ApiError(409, 'No KK sudah terdaftar di desa ini. Cari data tersebut di Master KK sebelum input ulang.', {
+          fieldErrors: { familyNumber: ['No KK sudah terdaftar di desa ini.'] },
         });
       }
       if (target.includes('nik')) {
@@ -373,8 +371,8 @@ export const createFamily = async (req, res, next) => {
     });
     const members = normalizeFamilyMembers(payload.members);
     assertUniqueSubmittedMemberNik(members);
-    await assertFamilyNumberAvailable({ familyNumber: payload.familyNumber, user: req.user });
-    await assertMemberNiksAvailable({ members, user: req.user });
+    await assertFamilyNumberAvailable({ familyNumber: payload.familyNumber, villageId: serviceArea.villageId });
+    await assertMemberNiksAvailable({ members, villageId: serviceArea.villageId });
     const created = await prisma.$transaction(async (tx) => {
       const family = await tx.family.create({
         data: {
@@ -448,8 +446,8 @@ export const updateFamily = async (req, res, next) => {
       rtId: payload.rtId,
     });
     assertUniqueSubmittedMemberNik(members);
-    await assertFamilyNumberAvailable({ familyNumber: payload.familyNumber, excludeId: id, user: req.user });
-    await assertMemberNiksAvailable({ members, excludeFamilyId: id, user: req.user });
+    await assertFamilyNumberAvailable({ familyNumber: payload.familyNumber, villageId: serviceArea.villageId, excludeId: id });
+    await assertMemberNiksAvailable({ members, villageId: serviceArea.villageId, excludeFamilyId: id });
 
     const updated = await prisma.$transaction(async (tx) => {
       await tx.family.update({

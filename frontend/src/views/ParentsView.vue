@@ -31,13 +31,13 @@ const deleting = ref(false);
 
 const filters = reactive({
   search: '',
-  familyNumber: '',
+  familyId: '',
   page: 1,
   pageSize: 10,
 });
 
 const form = reactive({
-  familyNumber: '',
+  familyId: '',
   fullName: '',
   nik: '',
   birthDate: '',
@@ -51,13 +51,13 @@ const parentLabelPlural = computed(() => (parentType.value === 'mother' ? 'Ibu' 
 const familyOptions = computed(() =>
   masterDataStore.families.map((item: any) => ({
     label: `${item.familyNumber} • ${item.headName}`,
-    value: String(item.familyNumber),
+    value: String(item.id),
   })),
 );
 
 const resetForm = () => {
   editingId.value = null;
-  form.familyNumber = '';
+  form.familyId = '';
   form.fullName = '';
   form.nik = '';
   form.birthDate = '';
@@ -71,7 +71,7 @@ const load = async () => {
   try {
     const response = await parentsService.list(parentType.value, {
       search: filters.search || undefined,
-      familyNumber: filters.familyNumber || undefined,
+      familyId: filters.familyId || undefined,
       page: filters.page,
       pageSize: filters.pageSize,
     });
@@ -98,7 +98,7 @@ const openCreate = () => {
 const editItem = (item: any) => {
   if (saving.value || deleting.value) return;
   editingId.value = item.id;
-  form.familyNumber = String(item.family?.familyNumber || '');
+  form.familyId = String(item.family?.id || '');
   form.fullName = item.fullName || '';
   form.nik = item.nik || '';
   form.birthDate = item.birthDate ? String(item.birthDate).slice(0, 10) : '';
@@ -120,12 +120,12 @@ const closeDeleteDialog = () => {
 
 const save = async () => {
   if (saving.value) return;
-  if (!form.familyNumber) {
-    appStore.pushToast('No KK wajib dipilih.', 'error');
+  if (!form.familyId) {
+    appStore.pushToast('Master KK wajib dipilih.', 'error');
     return;
   }
   const payload = {
-    familyNumber: form.familyNumber,
+    familyId: Number(form.familyId),
     fullName: form.fullName,
     nik: form.nik || null,
     birthDate: form.birthDate || null,
@@ -170,7 +170,7 @@ const remove = async () => {
 watch(parentType, async () => {
   filters.page = 1;
   filters.search = '';
-  filters.familyNumber = '';
+  filters.familyId = '';
   resetForm();
   await load();
 });
@@ -204,7 +204,7 @@ onMounted(async () => {
     <AppCard>
       <div class="toolbar-row filters-grid">
         <AppInput v-model="filters.search" :label="`Cari ${parentLabelPlural.toLowerCase()} (nama / NIK / no HP / no KK)`" />
-        <AppSelect v-model="filters.familyNumber" label="No KK (Master KK)" :options="familyOptions" />
+        <AppSelect v-model="filters.familyId" label="No KK (Master KK)" :options="familyOptions" />
         <AppButton @click="applyFilters">Terapkan filter</AppButton>
       </div>
     </AppCard>
@@ -265,7 +265,7 @@ onMounted(async () => {
 
     <AppDialog :open="openForm" :title="editingId ? `Edit ${parentLabel}` : `Tambah ${parentLabel}`" @close="closeForm">
       <form class="form-grid" @submit.prevent="save">
-        <AppSelect v-model="form.familyNumber" label="No KK (Master Kartu Keluarga)" :options="familyOptions" />
+        <AppSelect v-model="form.familyId" label="No KK (Master Kartu Keluarga)" :options="familyOptions" />
         <AppInput v-model="form.fullName" :label="`Nama ${parentLabel}`" />
         <AppInput v-model="form.nik" label="NIK" />
         <AppInput v-model="form.birthDate" label="Tanggal lahir" type="date" />

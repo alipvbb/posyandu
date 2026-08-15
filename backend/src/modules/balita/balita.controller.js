@@ -72,8 +72,9 @@ const assertToddlerAgeInRange = (birthDateValue) => {
 const mapPrismaError = (error) => {
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     if (error.code === 'P2002') {
-      if (String(error.meta?.target || '').includes('nik')) {
-        return new ApiError(409, 'NIK balita/anggota keluarga sudah terdaftar');
+      const target = Array.isArray(error.meta?.target) ? error.meta.target.join(',') : String(error.meta?.target || '');
+      if (target.includes('nik')) {
+        return new ApiError(409, 'NIK balita/anggota keluarga sudah terdaftar pada KK ini');
       }
       return new ApiError(409, 'Data unik sudah terdaftar');
     }
@@ -104,6 +105,35 @@ const resolveFamilyContext = async (tx, payload) => {
     null;
 
   return { family, fatherMember, motherMember };
+};
+
+const assertToddlerNikAvailableInVillage = async (tx, { nik, villageId, excludeToddlerId = null }) => {
+  const normalizedNik = sanitizeText(nik);
+  if (!normalizedNik) return;
+
+  const existing = await tx.toddler.findFirst({
+    where: {
+      nik: normalizedNik,
+      ...(excludeToddlerId ? { id: { not: excludeToddlerId } } : {}),
+      family: {
+        is: {
+          villageId,
+        },
+      },
+    },
+    select: {
+      id: true,
+      fullName: true,
+      noKk: true,
+    },
+  });
+
+  if (existing) {
+    throw new ApiError(
+      409,
+      `NIK balita sudah terdaftar di desa ini atas nama ${existing.fullName} pada KK ****${String(existing.noKk || '').slice(-4)}.`,
+    );
+  }
 };
 
 const ensurePosyanduVillageAccess = async (tx, reqUser, posyanduId) => {
@@ -291,6 +321,10 @@ export const createToddler = async (req, res, next) => {
 
       toddlerData.code = toddlerData.code || `BLT-${nanoid(8).toUpperCase()}`;
       await ensurePosyanduVillageAccess(tx, req.user, toddlerData.posyanduId);
+      await assertToddlerNikAvailableInVillage(tx, {
+        nik: toddlerData.nik,
+        villageId: family.villageId,
+      });
 
       await syncChildMemberFromToddler(tx, {
         selectedChildMember,
@@ -377,6 +411,11 @@ export const updateToddler = async (req, res, next) => {
       });
       assertToddlerAgeInRange(toddlerData.birthDate);
       await ensurePosyanduVillageAccess(tx, req.user, toddlerData.posyanduId);
+      await assertToddlerNikAvailableInVillage(tx, {
+        nik: toddlerData.nik,
+        villageId: family.villageId,
+        excludeToddlerId: id,
+      });
 
       await syncChildMemberFromToddler(tx, {
         selectedChildMember,
