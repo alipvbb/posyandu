@@ -121,6 +121,11 @@ const routes = [
     component: () => import('../views/ProfileView.vue'),
   },
   {
+    path: '/akses-ditolak',
+    name: 'access-denied',
+    component: () => import('../views/AccessDeniedView.vue'),
+  },
+  {
     path: '/pengaturan',
     name: 'settings',
     component: () => import('../views/SettingsView.vue'),
@@ -140,6 +145,9 @@ export const router = createRouter({
   scrollBehavior: () => ({ top: 0 }),
 });
 
+const getDefaultAuthenticatedRoute = (authStore: ReturnType<typeof useAuthStore>) =>
+  authStore.hasPermission('dashboard.view') ? { name: 'dashboard' } : { name: 'profile' };
+
 router.beforeEach(async (to) => {
   const authStore = useAuthStore();
   const appStore = useAppStore();
@@ -150,7 +158,7 @@ router.beforeEach(async (to) => {
   }
 
   if (to.meta.guestOnly && authStore.isAuthenticated && authStore.user) {
-    return { name: 'dashboard' };
+    return getDefaultAuthenticatedRoute(authStore);
   }
 
   if (!to.meta.public && !authStore.isAuthenticated) {
@@ -159,7 +167,7 @@ router.beforeEach(async (to) => {
 
   const permission = to.meta.permission as string | undefined;
   if (permission && !authStore.hasPermission(permission)) {
-    return { name: 'dashboard' };
+    return { name: 'access-denied', query: { from: to.fullPath } };
   }
 
   return true;
