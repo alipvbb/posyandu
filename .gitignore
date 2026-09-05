@@ -1,15 +1,37 @@
 node_modules
 dist
 .DS_Store
+
+# Environment files: keep real secrets local only.
 .env
 .env.local
+.env.*
 .env.*.local
+!.env.example
 backend/.env
 backend/.env.local
+backend/.env.*
 backend/.env.*.local
+!backend/.env.example
 frontend/.env
 frontend/.env.local
+frontend/.env.*
 frontend/.env.*.local
+!frontend/.env.example
+
+# Private keys and credential notes.
+*.pem
+*.key
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
+*credential*
+*credentials*
+*secret*
+*secrets*
+*password*
+*passwords*
 backend/node_modules
 frontend/node_modules
 backend/prisma/dev.db
